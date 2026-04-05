@@ -2,6 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { validateKey } from "../../foundation/utils/validateKey";
+import { validateMetadataKeys } from "../../foundation/utils/validateMetadataKeys";
 import type { AppContext } from "../../types";
 
 export class PutMetadata extends OpenAPIRoute {
@@ -62,7 +63,8 @@ export class PutMetadata extends OpenAPIRoute {
 			throw new HTTPException(404, { message: "Object not found" });
 		}
 
-		// object.body is now safe to access
+		validateMetadataKeys(data.body.customMetadata);
+
 		return await bucket.put(filePath, object.body, {
 			customMetadata: data.body.customMetadata,
 			httpMetadata: data.body.httpMetadata,

@@ -1,24 +1,31 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { timingSafeEqual } from "../../foundation/utils/timingSafeEqual";
 import type { AppContext, ShareMetadata } from "../../types";
 
 export class GetShareLink extends OpenAPIRoute {
 	schema = {
-		operationId: "get-share-link",
+		operationId: "post-share-link",
 		tags: ["Sharing"],
 		summary: "Access shared file",
 		security: [], // Public endpoint - no auth required
 		request: {
 			params: z.object({
-				shareId: z.string().describe("10-character share ID"),
+				shareId: z.string().describe("Share ID"),
 			}),
-			query: z.object({
-				password: z
-					.string()
-					.optional()
-					.describe("Password for protected shares"),
-			}),
+			body: {
+				content: {
+					"application/json": {
+						schema: z.object({
+							password: z
+								.string()
+								.optional()
+								.describe("Password for protected shares"),
+						}),
+					},
+				},
+			},
 		},
 		responses: {
 			"200": {
@@ -91,36 +98,60 @@ export class GetShareLink extends OpenAPIRoute {
 
 		// Validate password if required
 		if (shareMetadata.passwordHash) {
-			if (!data.query.password) {
+			const password = data.body?.password;
+			if (!password) {
 				throw new HTTPException(401, {
 					message: "Password required",
 				});
 			}
 
+			let providedHash: string;
 			const encoder = new TextEncoder();
-			const passwordData = encoder.encode(data.query.password);
-			const hashBuffer = await crypto.subtle.digest("SHA-256", passwordData);
-			const providedHash = Array.from(new Uint8Array(hashBuffer))
-				.map((b) => b.toString(16).padStart(2, "0"))
-				.join("");
 
-			if (providedHash !== shareMetadata.passwordHash) {
+			if (shareMetadata.passwordSalt) {
+				// PBKDF2 path (new shares)
+				const salt = new Uint8Array(
+					(shareMetadata.passwordSalt.match(/.{2}/g) || []).map((h) =>
+						Number.parseInt(h, 16),
+					),
+				);
+				const keyMaterial = await crypto.subtle.importKey(
+					"raw",
+					encoder.encode(password),
+					"PBKDF2",
+					false,
+					["deriveBits"],
+				);
+				const hashBuffer = await crypto.subtle.deriveBits(
+					{ name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
+					keyMaterial,
+					256,
+				);
+				providedHash = Array.from(new Uint8Array(hashBuffer))
+					.map((b) => b.toString(16).padStart(2, "0"))
+					.join("");
+			} else {
+				// Legacy SHA-256 path (pre-existing shares without salt)
+				const hashBuffer = await crypto.subtle.digest(
+					"SHA-256",
+					encoder.encode(password),
+				);
+				providedHash = Array.from(new Uint8Array(hashBuffer))
+					.map((b) => b.toString(16).padStart(2, "0"))
+					.join("");
+			}
+
+			if (!timingSafeEqual(providedHash, shareMetadata.passwordHash)) {
 				throw new HTTPException(401, {
 					message: "Incorrect password",
 				});
 			}
 		}
 
-		// Get the actual file before incrementing counter
-		const file = await bucket.get(shareMetadata.key);
-
-		if (!file) {
-			throw new HTTPException(404, {
-				message: "Shared file not found",
-			});
-		}
-
-		// Increment download counter only after confirming file exists
+		// Increment download counter BEFORE serving the file to mitigate TOCTOU
+		// race on maxDownloads. A failed download still counts — this is safer
+		// than allowing concurrent requests to bypass the limit. Note: a small
+		// race window remains since R2 has no atomic increment; see Principle 14.
 		shareMetadata.currentDownloads++;
 		await bucket.put(
 			`.r2-explorer/sharable-links/${shareId}.json`,
@@ -133,6 +164,15 @@ export class GetShareLink extends OpenAPIRoute {
 				},
 			},
 		);
+
+		// Fetch the actual file after counter increment
+		const file = await bucket.get(shareMetadata.key);
+
+		if (!file) {
+			throw new HTTPException(404, {
+				message: "Shared file not found",
+			});
+		}
 
 		// Return the file with proper headers
 		const headers = new Headers();

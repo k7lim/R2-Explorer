@@ -68,13 +68,13 @@ export class CreateShareLink extends OpenAPIRoute {
 			});
 		}
 
-		// Generate unique share ID
+		// Generate unique share ID (128-bit entropy via full UUID)
 		let shareId = "";
 		let attempts = 0;
 		const maxAttempts = 5;
 
 		while (attempts < maxAttempts) {
-			shareId = crypto.randomUUID().replace(/-/g, "").substring(0, 10);
+			shareId = crypto.randomUUID().replace(/-/g, "");
 			const existingShare = await bucket.head(
 				`.r2-explorer/sharable-links/${shareId}.json`,
 			);
@@ -90,12 +90,28 @@ export class CreateShareLink extends OpenAPIRoute {
 			});
 		}
 
-		// Hash password if provided
+		// Hash password if provided (PBKDF2 with random salt)
 		let passwordHash: string | undefined;
+		let passwordSalt: string | undefined;
 		if (data.body.password) {
+			const salt = crypto.getRandomValues(new Uint8Array(16));
+			passwordSalt = Array.from(salt)
+				.map((b) => b.toString(16).padStart(2, "0"))
+				.join("");
+
 			const encoder = new TextEncoder();
-			const passwordData = encoder.encode(data.body.password);
-			const hashBuffer = await crypto.subtle.digest("SHA-256", passwordData);
+			const keyMaterial = await crypto.subtle.importKey(
+				"raw",
+				encoder.encode(data.body.password),
+				"PBKDF2",
+				false,
+				["deriveBits"],
+			);
+			const hashBuffer = await crypto.subtle.deriveBits(
+				{ name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
+				keyMaterial,
+				256,
+			);
 			passwordHash = Array.from(new Uint8Array(hashBuffer))
 				.map((b) => b.toString(16).padStart(2, "0"))
 				.join("");
@@ -112,6 +128,7 @@ export class CreateShareLink extends OpenAPIRoute {
 			key: key,
 			expiresAt: expiresAt,
 			passwordHash: passwordHash,
+			passwordSalt: passwordSalt,
 			maxDownloads: data.body.maxDownloads,
 			currentDownloads: 0,
 			createdBy: c.get("authentication_username") || "anonymous",

@@ -2,6 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { validateKey } from "../../foundation/utils/validateKey";
+import { validateMetadataKeys } from "../../foundation/utils/validateMetadataKeys";
 import type { AppContext } from "../../types";
 
 export class PutObject extends OpenAPIRoute {
@@ -79,6 +80,8 @@ export class PutObject extends OpenAPIRoute {
 				});
 			}
 		}
+
+		validateMetadataKeys(customMetadata);
 
 		return await bucket.put(key, c.req.raw.body, {
 			customMetadata: customMetadata,

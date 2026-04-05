@@ -51,13 +51,34 @@ export class MoveObject extends OpenAPIRoute {
 			});
 		}
 
-		const resp = await bucket.put(newKey, object.body, {
+		const putResult = await bucket.put(newKey, object.body, {
 			customMetadata: object.customMetadata,
 			httpMetadata: object.httpMetadata,
 		});
 
-		await bucket.delete(oldKey);
+		if (!putResult) {
+			throw new HTTPException(500, {
+				message: "Move failed: could not write to destination",
+			});
+		}
 
-		return resp;
+		// Non-atomic: put succeeded, now delete source. If delete fails the
+		// object exists at both keys — caller should clean up. R2 provides no
+		// transactional move, so a crash here causes duplication (Principle 14).
+		try {
+			await bucket.delete(oldKey);
+		} catch (deleteError) {
+			return c.json(
+				{
+					warning:
+						"Object copied to new location but source could not be deleted",
+					newKey,
+					oldKey,
+				},
+				207,
+			);
+		}
+
+		return putResult;
 	}
 }

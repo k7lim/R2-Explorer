@@ -32,6 +32,8 @@ export type ShareMetadata = {
 	key: string;
 	expiresAt?: number;
 	passwordHash?: string;
+	/** Hex-encoded salt for PBKDF2 password hashing */
+	passwordSalt?: string;
 	maxDownloads?: number;
 	currentDownloads: number;
 	createdBy: string;
