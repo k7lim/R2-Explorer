@@ -18,6 +18,19 @@ async function streamToArrayBuffer(stream, streamSize) {
 	return result;
 }
 
+function sanitizeFilename(name: string): string {
+	const basename = name.split("/").pop()?.split("\\").pop() || "attachment";
+	let cleaned = "";
+	for (const ch of basename) {
+		if (ch.charCodeAt(0) >= 0x20) cleaned += ch;
+	}
+	return cleaned.replace(/\.\./g, "").replace(/[?#%]/g, "_");
+}
+
+function truncate(value: string | undefined | null, limit: number): string {
+	return (value ?? "").substring(0, limit);
+}
+
 export async function receiveEmail(
 	event: { raw: unknown; rawSize: unknown },
 	env: AppEnv,
@@ -63,12 +76,17 @@ export async function receiveEmail(
 		JSON.stringify(parsedEmail),
 		{
 			customMetadata: {
-				subject: parsedEmail.subject,
-				from_address: parsedEmail.from?.address,
-				from_name: parsedEmail.from?.name,
+				subject: truncate(parsedEmail.subject, 256),
+				from_address: truncate(parsedEmail.from?.address, 254),
+				from_name: truncate(parsedEmail.from?.name, 128),
 				to_address:
-					parsedEmail.to.length > 0 ? parsedEmail.to[0].address : null,
-				to_name: parsedEmail.to.length > 0 ? parsedEmail.to[0].name : null,
+					parsedEmail.to.length > 0
+						? truncate(parsedEmail.to[0].address, 254)
+						: null,
+				to_name:
+					parsedEmail.to.length > 0
+						? truncate(parsedEmail.to[0].name, 128)
+						: null,
 				has_attachments: parsedEmail.attachments.length > 0,
 				read: false,
 				timestamp: Date.now(),
@@ -77,8 +95,9 @@ export async function receiveEmail(
 	);
 
 	for (const att of parsedEmail.attachments) {
+		const safeFilename = sanitizeFilename(att.filename);
 		await bucket.put(
-			`.r2-explorer/emails/inbox/${emailPath}/${att.filename}`,
+			`.r2-explorer/emails/inbox/${emailPath}/${safeFilename}`,
 			att.content,
 		);
 	}
