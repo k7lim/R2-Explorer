@@ -12,7 +12,9 @@ export type BucketConfig = {
 
 export type R2ExplorerConfig = {
 	readonly?: boolean;
-	cors?: boolean;
+	cors?: boolean | { allowedOrigins: string[] };
+	/** Set to false to disable /docs, /redocs, and /openapi.json endpoints */
+	docs?: boolean;
 	cfAccessTeamName?: string;
 	dashboardUrl?: string;
 	emailRouting?:

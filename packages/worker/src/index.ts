@@ -11,6 +11,7 @@ import { z } from "zod";
 import { bucketValidationMiddleware } from "./foundation/middlewares/bucketValidation";
 import { readOnlyMiddleware } from "./foundation/middlewares/readonly";
 import { settings } from "./foundation/settings";
+import { timingSafeEqual } from "./foundation/utils/timingSafeEqual";
 import { CopyObject } from "./modules/buckets/copyObject";
 import { CreateFolder } from "./modules/buckets/createFolder";
 import { CreateShareLink } from "./modules/buckets/createShareLink";
@@ -70,10 +71,26 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 		schema: openapiSchema,
 		raiseUnknownParameters: true,
 		generateOperationIds: false,
+		...(config.docs === false
+			? { docs_url: null, redoc_url: null, openapi_url: null }
+			: {}),
 	});
 
-	if (config.cors === true) {
-		app.use("/api/*", cors());
+	if (config.cors) {
+		const corsConfig =
+			typeof config.cors === "object" ? config.cors : undefined;
+		app.use(
+			"/api/*",
+			cors({
+				origin: (origin) => {
+					if (!corsConfig?.allowedOrigins) {
+						// No allowlist configured: reject cross-origin requests
+						return null;
+					}
+					return corsConfig.allowedOrigins.includes(origin) ? origin : null;
+				},
+			}),
+		);
 	}
 
 	app.use("/api/buckets/:bucket/*", bucketValidationMiddleware);
@@ -108,7 +125,10 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 					) as BasicAuthType[];
 
 					for (const user of users) {
-						if (user.username === username && user.password === password) {
+						if (
+							timingSafeEqual(user.username, username) &&
+							timingSafeEqual(user.password, password)
+						) {
 							c.set("authentication_type", "basic-auth");
 							c.set("authentication_username", username);
 							return true;
