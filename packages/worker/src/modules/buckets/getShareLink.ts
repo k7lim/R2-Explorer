@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { auditLog } from "../../foundation/utils/auditLog";
 import { timingSafeEqual } from "../../foundation/utils/timingSafeEqual";
 import type { AppContext, ShareMetadata } from "../../types";
 
@@ -50,18 +51,23 @@ export class GetShareLink extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 		const shareId = data.params.shareId;
 
-		// Search all buckets for the share metadata
+		// Search only verified R2 buckets for the share metadata (VULN-26)
+		// Use constructor name check instead of iterating all env bindings,
+		// which avoids probing non-R2 bindings and leaking timing info.
 		let shareMetadata: ShareMetadata | null = null;
 		let bucket: R2Bucket | null = null;
 
-		for (const key in c.env) {
-			if (key === "ASSETS") continue;
-
-			const currentBucket = c.env[key] as R2Bucket;
-			if (!currentBucket.get || typeof currentBucket.get !== "function") {
+		for (const [key, value] of Object.entries(c.env)) {
+			if (
+				!value ||
+				typeof value !== "object" ||
+				(value as { constructor: { name: string } }).constructor.name !==
+					"R2Bucket"
+			) {
 				continue;
 			}
 
+			const currentBucket = value as R2Bucket;
 			const shareObject = await currentBucket.get(
 				`.r2-explorer/sharable-links/${shareId}.json`,
 			);
@@ -173,6 +179,12 @@ export class GetShareLink extends OpenAPIRoute {
 				message: "Shared file not found",
 			});
 		}
+
+		auditLog("share_access", {
+			shareId,
+			key: shareMetadata.key,
+			ip: c.req.header("cf-connecting-ip") || "unknown",
+		});
 
 		// Return the file with proper headers
 		const headers = new Headers();

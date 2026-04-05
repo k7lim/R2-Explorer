@@ -38,8 +38,11 @@ export const useMainStore = defineStore("main", {
 				this.buckets = response.data.buckets;
 
 				const url = new URL(window.location.href);
-				if (url.searchParams.get("next")) {
-					await router.replace(url.searchParams.get("next"));
+				const nextParam = url.searchParams.get("next");
+				// Validate next parameter to prevent open redirect (VULN-32):
+				// must start with "/" and must not start with "//" (protocol-relative URL)
+				if (nextParam?.startsWith("/") && !nextParam.startsWith("//")) {
+					await router.replace(nextParam);
 				} else if (url.pathname === "/" || url.pathname === "/auth/login") {
 					await router.push({
 						name: "files-home",

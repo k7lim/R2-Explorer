@@ -9,8 +9,12 @@ import { basicAuth } from "hono/basic-auth";
 import { cors } from "hono/cors";
 import { z } from "zod";
 import { bucketValidationMiddleware } from "./foundation/middlewares/bucketValidation";
+import { csrfProtection } from "./foundation/middlewares/csrfProtection";
+import { shareRateLimiter } from "./foundation/middlewares/rateLimiter";
 import { readOnlyMiddleware } from "./foundation/middlewares/readonly";
+import { securityHeadersMiddleware } from "./foundation/middlewares/securityHeaders";
 import { settings } from "./foundation/settings";
+import { auditLog } from "./foundation/utils/auditLog";
 import { timingSafeEqual } from "./foundation/utils/timingSafeEqual";
 import { CopyObject } from "./modules/buckets/copyObject";
 import { CreateFolder } from "./modules/buckets/createFolder";
@@ -62,6 +66,7 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 	}
 
 	const app = new Hono<{ Bindings: AppEnv; Variables: AppVariables }>();
+	app.use("*", securityHeadersMiddleware);
 	app.use("*", async (c, next) => {
 		c.set("config", config);
 		await next();
@@ -92,6 +97,9 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 			}),
 		);
 	}
+
+	// CSRF protection on state-changing API requests (VULN-36)
+	app.use("/api/*", csrfProtection);
 
 	app.use("/api/buckets/:bucket/*", bucketValidationMiddleware);
 
@@ -131,10 +139,15 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 						) {
 							c.set("authentication_type", "basic-auth");
 							c.set("authentication_username", username);
+							auditLog("auth_success", { username });
 							return true;
 						}
 					}
 
+					auditLog("auth_failure", {
+						username,
+						ip: c.req.header("cf-connecting-ip") || "unknown",
+					});
 					return false;
 				},
 			}),
@@ -166,7 +179,8 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 
 	openapi.post("/api/emails/send", SendEmail);
 
-	// Public share access (no authentication required)
+	// Public share access (no authentication required) — rate limited (VULN-14)
+	app.use("/share/*", shareRateLimiter);
 	openapi.post("/share/:shareId", GetShareLink);
 
 	openapi.get("/", dashboardIndex);

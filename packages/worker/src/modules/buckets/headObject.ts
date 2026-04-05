@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
@@ -29,18 +30,7 @@ export class HeadObject extends OpenAPIRoute {
 			});
 		}
 
-		let filePath;
-		try {
-			filePath = decodeURIComponent(escape(atob(data.params.key)));
-		} catch {
-			try {
-				filePath = decodeURIComponent(
-					escape(atob(decodeURIComponent(data.params.key))),
-				);
-			} catch {
-				filePath = escape(atob(decodeURIComponent(data.params.key)));
-			}
-		}
+		const filePath = decodeBase64Key(data.params.key);
 		validateKey(filePath);
 
 		const objectMeta = await bucket.head(filePath);

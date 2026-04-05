@@ -52,6 +52,15 @@ export class PutObject extends OpenAPIRoute {
 			});
 		}
 
+		// Reject uploads exceeding 100MB to prevent storage cost DoS (VULN-30)
+		const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;
+		const contentLength = c.req.header("content-length");
+		if (contentLength && Number.parseInt(contentLength, 10) > MAX_UPLOAD_SIZE) {
+			throw new HTTPException(413, {
+				message: "Upload exceeds maximum allowed size (100MB)",
+			});
+		}
+
 		const key = decodeURIComponent(escape(atob(data.query.key)));
 		validateKey(key);
 

@@ -48,7 +48,7 @@
                   ref="renderWindow"
                   id="renderWindow"
                   :srcdoc="srcdoc"
-                  sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+                  sandbox="allow-popups allow-popups-to-escape-sandbox"
                   csp="script-src 'none'"
           />
           <div v-else v-html="escapeHtml(file.text).replaceAll('\n', '<br>')"></div>
@@ -93,10 +93,10 @@
 <script>
 import { api } from "boot/axios";
 import { useQuasar } from "quasar";
+import { escapeHtml } from "src/utils/sanitize";
 import { useMainStore } from "stores/main-store";
 import { defineComponent } from "vue";
 import { apiHandler, decode, encode, timeSince } from "../../appUtils";
-import { escapeHtml } from "src/utils/sanitize";
 
 export default defineComponent({
 	name: "EmailFolderPage",
@@ -141,10 +141,16 @@ export default defineComponent({
 		},
 		resizeIframe() {
 			if (this.$refs.renderWindow) {
-				this.$refs.renderWindow.style.height = `${
-					this.$refs.renderWindow.contentWindow.document.documentElement
-						.scrollHeight
-				}px`;
+				try {
+					// Without allow-same-origin, cross-origin access may throw
+					this.$refs.renderWindow.style.height = `${
+						this.$refs.renderWindow.contentWindow.document.documentElement
+							.scrollHeight
+					}px`;
+				} catch {
+					// Fallback: use a generous fixed height when cross-origin blocks access
+					this.$refs.renderWindow.style.height = "600px";
+				}
 			}
 		},
 

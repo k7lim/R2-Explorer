@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { auditLog } from "../../foundation/utils/auditLog";
 import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
@@ -41,7 +42,31 @@ export class DeleteObject extends OpenAPIRoute {
 		const key = decodeURIComponent(escape(atob(data.body.key)));
 		validateKey(key);
 
+		// Soft-delete: move to .trash/ instead of hard delete (VULN-47),
+		// mirroring r2-webdav's soft-delete pattern for consistency.
+		const object = await bucket.get(key);
+		if (object) {
+			const timestamp = new Date().toISOString();
+			const randomSuffix = crypto.randomUUID().slice(0, 8);
+			const trashKey = `.trash/${timestamp}-${randomSuffix}/${key}`;
+			await bucket.put(trashKey, object.body, {
+				httpMetadata: object.httpMetadata,
+				customMetadata: {
+					...object.customMetadata,
+					trash_original_key: key,
+					trash_deleted_at: timestamp,
+					trash_deleted_by: c.get("authentication_username") || "unknown",
+					trash_source: "r2-explorer",
+				},
+			});
+		}
 		await bucket.delete(key);
+
+		auditLog("file_deleted", {
+			bucket: bucketName,
+			key,
+			user: c.get("authentication_username") || "unknown",
+		});
 
 		return { success: true };
 	}
