@@ -4,7 +4,13 @@ import { HTTPException } from "hono/http-exception";
  * Metadata key prefixes reserved by the WebDAV layer. Allowing authenticated
  * users to set these via R2-Explorer would corrupt WebDAV state (VULN-33).
  */
-const RESERVED_KEY_PATTERNS = ["lock_", "resourcetype", "dead_prop_", "trash_"];
+const RESERVED_KEY_PATTERNS = [
+	"lock_",
+	"resourcetype",
+	"dead_prop_",
+	"trash_",
+	"schema_version",
+];
 
 /**
  * Rejects custom metadata whose keys collide with WebDAV-interpreted
