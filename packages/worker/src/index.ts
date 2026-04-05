@@ -8,6 +8,7 @@ import { type ExecutionContext, Hono } from "hono";
 import { basicAuth } from "hono/basic-auth";
 import { cors } from "hono/cors";
 import { z } from "zod";
+import { bucketValidationMiddleware } from "./foundation/middlewares/bucketValidation";
 import { readOnlyMiddleware } from "./foundation/middlewares/readonly";
 import { settings } from "./foundation/settings";
 import { CopyObject } from "./modules/buckets/copyObject";
@@ -74,6 +75,8 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 	if (config.cors === true) {
 		app.use("/api/*", cors());
 	}
+
+	app.use("/api/buckets/:bucket/*", bucketValidationMiddleware);
 
 	if (config.readonly === true) {
 		app.use("/api/*", readOnlyMiddleware);

@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
 export class DeleteObject extends OpenAPIRoute {
@@ -38,6 +39,7 @@ export class DeleteObject extends OpenAPIRoute {
 		}
 
 		const key = decodeURIComponent(escape(atob(data.body.key)));
+		validateKey(key);
 
 		await bucket.delete(key);
 

@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
 export class CopyObject extends OpenAPIRoute {
@@ -43,6 +44,8 @@ export class CopyObject extends OpenAPIRoute {
 		const destinationKey = decodeURIComponent(
 			escape(atob(data.body.destinationKey)),
 		);
+		validateKey(sourceKey);
+		validateKey(destinationKey);
 
 		const object = await bucket.get(sourceKey);
 

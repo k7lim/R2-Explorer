@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext, ShareMetadata } from "../../types";
 
 export class CreateShareLink extends OpenAPIRoute {
@@ -57,6 +58,7 @@ export class CreateShareLink extends OpenAPIRoute {
 		}
 
 		const key = decodeURIComponent(escape(atob(data.params.key)));
+		validateKey(key);
 
 		// Verify the file exists
 		const fileExists = await bucket.head(key);

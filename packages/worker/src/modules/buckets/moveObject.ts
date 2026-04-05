@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
 export class MoveObject extends OpenAPIRoute {
@@ -39,6 +40,8 @@ export class MoveObject extends OpenAPIRoute {
 
 		const oldKey = decodeURIComponent(escape(atob(data.body.oldKey)));
 		const newKey = decodeURIComponent(escape(atob(data.body.newKey)));
+		validateKey(oldKey);
+		validateKey(newKey);
 
 		const object = await bucket.get(oldKey);
 

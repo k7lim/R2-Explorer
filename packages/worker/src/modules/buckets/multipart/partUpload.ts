@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { validateKey } from "../../../foundation/utils/validateKey";
 import type { AppContext } from "../../../types";
 
 export class PartUpload extends OpenAPIRoute {
@@ -46,6 +47,7 @@ export class PartUpload extends OpenAPIRoute {
 		}
 
 		const key = decodeURIComponent(escape(atob(data.query.key)));
+		validateKey(key);
 
 		const multipartUpload = bucket.resumeMultipartUpload(
 			key,

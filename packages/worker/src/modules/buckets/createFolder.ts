@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
 export class CreateFolder extends OpenAPIRoute {
@@ -36,6 +37,7 @@ export class CreateFolder extends OpenAPIRoute {
 			});
 		}
 		const key = decodeURIComponent(escape(atob(data.body.key)));
+		validateKey(key);
 
 		// R2 doesn't have real folders. Create a zero-byte object with a trailing slash.
 		// Or, if key already ends with a slash, use it as is.

@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { validateKey } from "../../../foundation/utils/validateKey";
 import type { AppContext } from "../../../types";
 
 export class CreateUpload extends OpenAPIRoute {
@@ -45,6 +46,7 @@ export class CreateUpload extends OpenAPIRoute {
 		}
 
 		const key = decodeURIComponent(escape(atob(data.query.key)));
+		validateKey(key);
 
 		let customMetadata = undefined;
 		if (data.query.customMetadata) {
