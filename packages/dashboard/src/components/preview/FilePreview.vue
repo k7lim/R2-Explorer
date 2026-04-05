@@ -83,19 +83,19 @@
           </template>
 
           <template v-else-if="type === 'text'">
-            <div v-html="fileData.replaceAll('\n', '<br>')"></div>
+            <div v-html="escapeHtml(fileData).replaceAll('\n', '<br>')"></div>
           </template>
 
           <template v-else-if="type === 'json'">
-            <pre v-html="JSON.stringify(fileData, null, 2)"></pre>
+            <pre v-text="JSON.stringify(fileData, null, 2)"></pre>
           </template>
 
           <template v-else-if="type === 'html'">
-            <pre v-html="fileData"></pre>
+            <pre v-html="sanitizeHtml(fileData)"></pre>
           </template>
 
           <template v-else-if="type === 'markdown'">
-            <div class="markdown" v-html="markdownParser(fileData)"></div>
+            <div class="markdown" v-html="sanitizeHtml(markdownParser(fileData))"></div>
           </template>
 
           <template v-else-if="type === 'csv'">
@@ -118,7 +118,7 @@
                 </q-card-section>
               </q-card>
               <div class="file-edit">
-                <div v-html="fileData.replaceAll('\n', '<br>')"></div>
+                <div v-html="escapeHtml(fileData).replaceAll('\n', '<br>')"></div>
               </div>
             </div>
           </template>
@@ -140,6 +140,7 @@ import {
 	decode,
 } from "src/appUtils";
 import { parseMarkdown } from "src/parsers/markdown";
+import { sanitizeHtml, escapeHtml } from "src/utils/sanitize";
 
 export default {
 	components: {
@@ -330,6 +331,8 @@ export default {
 			this.abortControl = undefined;
 			this.downloadProgress = 0;
 		},
+		sanitizeHtml,
+		escapeHtml,
 		markdownParser(text) {
 			return parseMarkdown(text);
 		},
@@ -349,10 +352,11 @@ export default {
 					});
 
 				for (const col of columns) {
+					const safe = escapeHtml(col.replaceAll('"', ""));
 					if (index === 0) {
-						line += `<th>${col.replaceAll('"', "")}</th>`;
+						line += `<th>${safe}</th>`;
 					} else {
-						line += `<td>${col.replaceAll('"', "")}</td>`;
+						line += `<td>${safe}</td>`;
 					}
 				}
 

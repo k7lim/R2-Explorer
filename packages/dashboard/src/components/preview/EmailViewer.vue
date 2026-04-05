@@ -25,7 +25,7 @@
 
     <template v-if="emailData.html">
       <br/>
-      <div class="overflow-auto" v-html="emailData.htmlAsText.replaceAll('\n', '<br>')"></div>
+      <div class="overflow-auto" v-html="escapeHtml(emailData.htmlAsText).replaceAll('\n', '<br>')"></div>
       <hr/>
     </template>
 
@@ -33,7 +33,7 @@
       <details :open="emailData.html ? undefined : 'open'">
         <summary>Text</summary>
         <br/>
-        <div class="overflow-auto" v-html="emailData.text.replaceAll('\n', '<br>')"></div>
+        <div class="overflow-auto" v-html="escapeHtml(emailData.text).replaceAll('\n', '<br>')"></div>
       </details>
       <hr/>
     </template>
@@ -58,6 +58,7 @@
 <script>
 import { convert } from "html-to-text";
 import PostalMime from "postal-mime";
+import { escapeHtml } from "src/utils/sanitize";
 
 export default {
 	props: ["filedata"],
@@ -65,6 +66,7 @@ export default {
 		emailData: null,
 	}),
 	methods: {
+		escapeHtml,
 		async parseEmail() {
 			try {
 				const parser = new PostalMime.default();

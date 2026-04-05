@@ -51,7 +51,7 @@
                   sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
                   csp="script-src 'none'"
           />
-          <div v-else v-html="file.text.replaceAll('\n', '<br>')"></div>
+          <div v-else v-html="escapeHtml(file.text).replaceAll('\n', '<br>')"></div>
         </div>
       </q-card-actions>
 
@@ -96,6 +96,7 @@ import { useQuasar } from "quasar";
 import { useMainStore } from "stores/main-store";
 import { defineComponent } from "vue";
 import { apiHandler, decode, encode, timeSince } from "../../appUtils";
+import { escapeHtml } from "src/utils/sanitize";
 
 export default defineComponent({
 	name: "EmailFolderPage",
@@ -131,6 +132,7 @@ export default defineComponent({
 	},
 	methods: {
 		timeSince,
+		escapeHtml,
 		contentFinishedLoading() {
 			clearInterval(this.timeInterval);
 			this.timeInterval = null;

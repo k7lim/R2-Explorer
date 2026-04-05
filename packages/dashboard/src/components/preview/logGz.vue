@@ -1,6 +1,6 @@
 <template>
   <template v-if="data">
-    <pre v-for="(item, index) in data" :key="index" v-html="item"/>
+    <pre v-for="(item, index) in data" :key="index" v-text="item"/>
   </template>
 </template>
 

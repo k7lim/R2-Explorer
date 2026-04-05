@@ -1,4 +1,6 @@
 /***   Regex Markdown Parser by chalarangelo   ***/
+import { escapeHtml } from "src/utils/sanitize";
+
 // Replaces 'regex' with 'replacement' in 'str'
 // Curry function, usage: replaceRegex(regexVar, replacementVar) (strVar)
 const replaceRegex = (regex, replacement) => (str) =>
@@ -17,14 +19,28 @@ const unorderedListRegex = /(\n\s*(\-|\+)\s.*)+/g;
 const orderedListRegex = /(\n\s*([0-9]+\.)\s.*)+/g;
 const paragraphRegex =
 	/\n+(?!<pre>)(?!<h)(?!<ul>)(?!<blockquote)(?!<hr)(?!\t)([^\n]+)\n/g;
+
+// URL validation: reject javascript: and data: URIs
+const isSafeUrl = (url) => {
+	const trimmed = url.trim().toLowerCase();
+	if (trimmed.startsWith("javascript:") || trimmed.startsWith("data:")) {
+		return false;
+	}
+	return true;
+};
+
 // Replacer functions for Markdown
-const codeBlockReplacer = (fullMatch) => `\n<pre>${fullMatch}</pre>`;
+const codeBlockReplacer = (fullMatch) => `\n<pre>${escapeHtml(fullMatch)}</pre>`;
 const inlineCodeReplacer = (fullMatch, tagStart, tagContents) =>
-	`<code>${tagContents}</code>`;
-const imageReplacer = (fullMatch, tagTitle, tagURL) =>
-	`<img src="${tagURL}" alt="${tagTitle}" />`;
-const linkReplacer = (fullMatch, tagTitle, tagURL) =>
-	`<a href="${tagURL}">${tagTitle}</a>`;
+	`<code>${escapeHtml(tagContents)}</code>`;
+const imageReplacer = (fullMatch, tagTitle, tagURL) => {
+	if (!isSafeUrl(tagURL)) return escapeHtml(fullMatch);
+	return `<img src="${escapeHtml(tagURL)}" alt="${escapeHtml(tagTitle)}" />`;
+};
+const linkReplacer = (fullMatch, tagTitle, tagURL) => {
+	if (!isSafeUrl(tagURL)) return escapeHtml(fullMatch);
+	return `<a href="${escapeHtml(tagURL)}">${escapeHtml(tagTitle)}</a>`;
+};
 const headingReplacer = (fullMatch, tagStart, tagContents) =>
 	`\n<h${tagStart.trim().length}>${tagContents}</h${tagStart.trim().length}>`;
 const boldItalicsReplacer = (fullMatch, tagStart, tagContents) =>
@@ -40,7 +56,7 @@ const unorderedListReplacer = (fullMatch) => {
 		.trim()
 		.split("\n")
 		.forEach((item) => {
-			items += `<li>${item.substring(2)}</li>`;
+			items += `<li>${escapeHtml(item.substring(2))}</li>`;
 		});
 	return `\n<ul>${items}</ul>`;
 };
@@ -50,7 +66,7 @@ const orderedListReplacer = (fullMatch) => {
 		.trim()
 		.split("\n")
 		.forEach((item) => {
-			items += `<li>${item.substring(item.indexOf(".") + 2)}</li>`;
+			items += `<li>${escapeHtml(item.substring(item.indexOf(".") + 2))}</li>`;
 		});
 	return `\n<ol>${items}</ol>`;
 };
