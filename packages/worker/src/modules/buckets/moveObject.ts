@@ -2,6 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { validateKey } from "../../foundation/utils/validateKey";
+import { validateMetadataKeys } from "../../foundation/utils/validateMetadataKeys";
 import type { AppContext } from "../../types";
 
 export class MoveObject extends OpenAPIRoute {
@@ -42,6 +43,16 @@ export class MoveObject extends OpenAPIRoute {
 		const newKey = decodeURIComponent(escape(atob(data.body.newKey)));
 		validateKey(oldKey);
 		validateKey(newKey);
+
+		const head = await bucket.head(oldKey);
+
+		if (head === null) {
+			throw new HTTPException(404, {
+				message: `Source object not found: ${oldKey}`,
+			});
+		}
+
+		validateMetadataKeys(head.customMetadata);
 
 		const object = await bucket.get(oldKey);
 

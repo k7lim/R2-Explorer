@@ -9,6 +9,7 @@ describe("CopyObject (POST /api/buckets/:bucket/copy)", () => {
 	const SOURCE_KEY = "test-source.txt";
 	const SOURCE_CONTENT = "Hello R2 Explorer!";
 	const SOURCE_CONTENT_TYPE = "text/plain";
+	const POISONED_KEY = "poisoned-source.txt";
 
 	beforeEach(async () => {
 		app = createTestApp();
@@ -23,6 +24,10 @@ describe("CopyObject (POST /api/buckets/:bucket/copy)", () => {
 			await MY_TEST_BUCKET_1.put(SOURCE_KEY, SOURCE_CONTENT, {
 				httpMetadata: { contentType: SOURCE_CONTENT_TYPE },
 				customMetadata: { project: "r2-explorer", version: "1.0" },
+			});
+			// Pre-seed an object with reserved metadata (simulates pre-WP-7 or direct API write)
+			await MY_TEST_BUCKET_1.put(POISONED_KEY, "corrupted", {
+				customMetadata: { lock_records: "x" },
 			});
 		}
 	});
@@ -138,6 +143,22 @@ describe("CopyObject (POST /api/buckets/:bucket/copy)", () => {
 		expect(response.status).toBe(500);
 		const body = await response.text();
 		expect(body).toContain("Bucket binding not found: NON_EXISTENT_BUCKET");
+	});
+
+	it("should return 400 when source has reserved metadata keys", async () => {
+		const request = createTestRequest(
+			`/api/buckets/${BUCKET_NAME}/copy`,
+			"POST",
+			{
+				sourceKey: btoa(POISONED_KEY),
+				destinationKey: btoa("copy-of-poisoned.txt"),
+			},
+			{ "Content-Type": "application/json" },
+		);
+		const response = await app.fetch(request, env, createExecutionContext());
+		expect(response.status).toBe(400);
+		const body = await response.text();
+		expect(body).toContain("reserved for internal use");
 	});
 
 	it("should not delete the source object after copy", async () => {
