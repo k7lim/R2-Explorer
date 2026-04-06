@@ -1,5 +1,6 @@
 import { createExecutionContext, env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { validateKey } from "../../src/foundation/utils/validateKey";
 import { R2Explorer } from "../../src/index"; // Changed to named import
 import type { R2ExplorerEmail } from "../../src/modules/emails/receiveEmail"; // For typing
 import { createTestApp, createTestRequest } from "./setup";
@@ -205,6 +206,78 @@ describe("Email Endpoints", () => {
 			expect(attachmentText.trim()).toBe("Attachment content.");
 		});
 
+		it("should neutralize attachment with percent-encoded traversal in filename", async () => {
+			if (!MY_TEST_BUCKET_1)
+				throw new Error("MY_TEST_BUCKET_1 not available for test");
+			const appInstance = R2Explorer({
+				emailRouting: { targetBucket: BUCKET_NAME },
+			});
+
+			// sanitizeFilename strips path components and replaces %, so this
+			// exercises the defense-in-depth: basename extraction defuses the
+			// traversal, and validateKey would catch any residual encoding.
+			const rawEmail =
+				'From: attacker@example.com\nTo: victim@example.com\nSubject: Malicious\nContent-Type: multipart/mixed; boundary=boundary\n\n--boundary\nContent-Type: text/plain\n\nBody.\n--boundary\nContent-Type: text/plain; name="file%2e%2e/escape.txt"\nContent-Disposition: attachment; filename="file%2e%2e/escape.txt"\n\nEvil content.\n--boundary--';
+			const mockEvent = createMockEmailEvent(rawEmail);
+
+			await appInstance.email(mockEvent as any, env, createExecutionContext());
+
+			const listed = await MY_TEST_BUCKET_1.list({ prefix: emailPrefix });
+			const attachmentObj = listed.objects.find(
+				(o) => !o.key.endsWith(".json"),
+			);
+			expect(attachmentObj).toBeDefined();
+			// The key must not contain traversal or encoded sequences
+			expect(attachmentObj!.key).not.toContain("..");
+			expect(attachmentObj!.key).not.toMatch(/%[0-9a-fA-F]{2}/);
+		});
+
+		it("should reject attachment with control character in filename", async () => {
+			if (!MY_TEST_BUCKET_1)
+				throw new Error("MY_TEST_BUCKET_1 not available for test");
+			const appInstance = R2Explorer({
+				emailRouting: { targetBucket: BUCKET_NAME },
+			});
+
+			// Control char \x01 in the attachment filename — sanitizeFilename strips it,
+			// but the resulting key is still validated by validateKey.
+			const rawEmail =
+				'From: attacker@example.com\nTo: victim@example.com\nSubject: Control Char\nContent-Type: multipart/mixed; boundary=boundary\n\n--boundary\nContent-Type: text/plain\n\nBody.\n--boundary\nContent-Type: text/plain; name="bad\x01file.txt"\nContent-Disposition: attachment; filename="bad\x01file.txt"\n\nEvil content.\n--boundary--';
+			const mockEvent = createMockEmailEvent(rawEmail);
+
+			// sanitizeFilename strips control chars, so this should succeed with a cleaned name
+			await appInstance.email(mockEvent as any, env, createExecutionContext());
+
+			const listed = await MY_TEST_BUCKET_1.list({ prefix: emailPrefix });
+			const attachmentObj = listed.objects.find(
+				(o) => !o.key.endsWith(".json"),
+			);
+			expect(attachmentObj).toBeDefined();
+			// The control char should have been stripped from the key
+			expect(attachmentObj!.key).not.toMatch(/[\x00-\x1f]/);
+		});
+
+		it("should store normal attachment successfully with validateKey", async () => {
+			if (!MY_TEST_BUCKET_1)
+				throw new Error("MY_TEST_BUCKET_1 not available for test");
+			const appInstance = R2Explorer({
+				emailRouting: { targetBucket: BUCKET_NAME },
+			});
+
+			const rawEmail =
+				'From: sender@example.com\nTo: receiver@example.com\nSubject: Normal PDF\nContent-Type: multipart/mixed; boundary=boundary\n\n--boundary\nContent-Type: text/plain\n\nBody.\n--boundary\nContent-Type: application/pdf; name="normal.pdf"\nContent-Disposition: attachment; filename="normal.pdf"\n\nPDF content.\n--boundary--';
+			const mockEvent = createMockEmailEvent(rawEmail);
+
+			await appInstance.email(mockEvent as any, env, createExecutionContext());
+
+			const listed = await MY_TEST_BUCKET_1.list({ prefix: emailPrefix });
+			const attachmentObj = listed.objects.find(
+				(o) => !o.key.endsWith(".json"),
+			);
+			expect(attachmentObj).toBeDefined();
+			expect(attachmentObj!.key).toContain("normal.pdf");
+		});
+
 		it.skip("should process and store an email in the default bucket if targetBucket not specified", async () => {
 			if (!MY_TEST_BUCKET_1)
 				throw new Error("MY_TEST_BUCKET_1 not available for test");
@@ -228,5 +301,67 @@ describe("Email Endpoints", () => {
 			const emailData = (await r2Object.json()) as R2ExplorerEmail;
 			expect(emailData.subject).toBe("Default Bucket Test");
 		});
+	});
+});
+
+describe("validateKey (email-related scenarios)", () => {
+	it("rejects percent-encoded dot sequences", () => {
+		expect(() => validateKey("files/%2e%2e/etc/passwd")).toThrow(
+			"percent-encoded",
+		);
+	});
+
+	it("rejects percent-encoded slash", () => {
+		expect(() => validateKey("files/foo%2fbar")).toThrow("percent-encoded");
+	});
+
+	it("rejects literal traversal", () => {
+		expect(() => validateKey("files/../etc/passwd")).toThrow("traversal");
+	});
+
+	it("rejects control characters", () => {
+		expect(() => validateKey("file\x00name")).toThrow("control characters");
+	});
+
+	it("rejects backslashes", () => {
+		expect(() => validateKey("files\\escape")).toThrow("backslash");
+	});
+
+	it("rejects .r2-explorer/ prefix by default", () => {
+		expect(() => validateKey(".r2-explorer/emails/test")).toThrow(
+			"reserved internal prefix",
+		);
+	});
+
+	it("allows .r2-explorer/ prefix when allowR2ExplorerPrefix is true", () => {
+		expect(
+			validateKey(".r2-explorer/emails/test", {
+				allowR2ExplorerPrefix: true,
+			}),
+		).toBe(".r2-explorer/emails/test");
+	});
+
+	it("still rejects .trash/ even with allowR2ExplorerPrefix", () => {
+		expect(() =>
+			validateKey(".trash/malicious", { allowR2ExplorerPrefix: true }),
+		).toThrow("reserved internal prefix");
+	});
+
+	it("still rejects .versions/ even with allowR2ExplorerPrefix", () => {
+		expect(() =>
+			validateKey(".versions/malicious", { allowR2ExplorerPrefix: true }),
+		).toThrow("reserved internal prefix");
+	});
+
+	it("still rejects .operations/ even with allowR2ExplorerPrefix", () => {
+		expect(() =>
+			validateKey(".operations/malicious", { allowR2ExplorerPrefix: true }),
+		).toThrow("reserved internal prefix");
+	});
+
+	it("accepts clean keys", () => {
+		expect(validateKey("photos/vacation/beach.jpg")).toBe(
+			"photos/vacation/beach.jpg",
+		);
 	});
 });

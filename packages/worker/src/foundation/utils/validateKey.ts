@@ -1,10 +1,14 @@
 import { HTTPException } from "hono/http-exception";
 
+interface ValidateKeyOptions {
+	allowR2ExplorerPrefix?: boolean;
+}
+
 /**
  * Validates a decoded R2 object key, rejecting dangerous patterns.
  * Throws HTTPException(400) on invalid input.
  */
-export function validateKey(key: string): string {
+export function validateKey(key: string, options?: ValidateKeyOptions): string {
 	// Reject control characters (U+0000 through U+001F)
 	// biome-ignore lint/suspicious/noControlCharactersInRegex: intentional validation of user input
 	if (/[\u0000-\u001f]/.test(key)) {
@@ -35,8 +39,26 @@ export function validateKey(key: string): string {
 		});
 	}
 
-	// Reject reserved internal prefix
-	if (key.startsWith(".r2-explorer/")) {
+	// Reject backslashes
+	if (key.includes("\\")) {
+		throw new HTTPException(400, {
+			message: "Invalid key: contains backslash",
+		});
+	}
+
+	// Reject reserved internal prefix (unless caller is a legitimate writer)
+	if (key.startsWith(".r2-explorer/") && !options?.allowR2ExplorerPrefix) {
+		throw new HTTPException(400, {
+			message: "Invalid key: reserved internal prefix",
+		});
+	}
+
+	// Always reject other reserved prefixes
+	if (
+		key.startsWith(".trash/") ||
+		key.startsWith(".versions/") ||
+		key.startsWith(".operations/")
+	) {
 		throw new HTTPException(400, {
 			message: "Invalid key: reserved internal prefix",
 		});

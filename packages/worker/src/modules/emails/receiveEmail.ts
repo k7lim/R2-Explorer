@@ -1,6 +1,7 @@
 import type { ExecutionContext } from "hono";
 import PostalMime from "postal-mime";
 import { getCurrentTimestampMilliseconds } from "../../foundation/dates";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppEnv, R2ExplorerConfig } from "../../types";
 
 async function streamToArrayBuffer(stream, streamSize) {
@@ -96,9 +97,8 @@ export async function receiveEmail(
 
 	for (const att of parsedEmail.attachments) {
 		const safeFilename = sanitizeFilename(att.filename);
-		await bucket.put(
-			`.r2-explorer/emails/inbox/${emailPath}/${safeFilename}`,
-			att.content,
-		);
+		const key = `.r2-explorer/emails/inbox/${emailPath}/${safeFilename}`;
+		validateKey(key, { allowR2ExplorerPrefix: true });
+		await bucket.put(key, att.content);
 	}
 }
