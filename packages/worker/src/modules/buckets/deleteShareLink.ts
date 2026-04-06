@@ -11,7 +11,7 @@ export class DeleteShareLink extends OpenAPIRoute {
 		request: {
 			params: z.object({
 				bucket: z.string(),
-				shareId: z.string().describe("10-character share ID"),
+				shareId: z.string().describe("32-character UUID share ID"),
 			}),
 		},
 		responses: {
