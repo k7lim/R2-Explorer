@@ -55,8 +55,8 @@ export class DeleteObject extends OpenAPIRoute {
 					...object.customMetadata,
 					trash_original_key: key,
 					trash_deleted_at: timestamp,
-					trash_deleted_by: c.get("authentication_username") || "unknown",
-					trash_source: "r2-explorer",
+					trash_deleted_by: "r2-explorer",
+					schema_version: "1",
 				},
 			});
 		}

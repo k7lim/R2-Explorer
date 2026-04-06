@@ -417,6 +417,47 @@ describe("Bucket Endpoints", () => {
 			expect(r2Object).toBeNull();
 		});
 
+		it("should soft-delete to .trash/ with correct metadata schema", async () => {
+			if (!MY_TEST_BUCKET_1) {
+				throw new Error("MY_TEST_BUCKET_1 binding not available");
+			}
+
+			const objectKey = "trash-schema-test.txt";
+			await MY_TEST_BUCKET_1.put(objectKey, "Content for trash test");
+
+			const base64ObjectKey = btoa(objectKey);
+			const request = createTestRequest(
+				"/api/buckets/MY_TEST_BUCKET_1/delete",
+				"POST",
+				{ key: base64ObjectKey },
+				{ "Content-Type": "application/json" },
+			);
+
+			const response = await app.fetch(request, env, createExecutionContext());
+			expect(response.status).toBe(200);
+
+			// Original key should be gone
+			const original = await MY_TEST_BUCKET_1.head(objectKey);
+			expect(original).toBeNull();
+
+			// Find the trash entry
+			const listed = await MY_TEST_BUCKET_1.list({ prefix: ".trash/" });
+			expect(listed.objects.length).toBe(1);
+			const trashObject = await MY_TEST_BUCKET_1.head(listed.objects[0].key);
+			expect(trashObject).not.toBeNull();
+
+			const meta = trashObject!.customMetadata;
+
+			// Assert all 4 required fields
+			expect(meta.trash_original_key).toBe(objectKey);
+			expect(meta.trash_deleted_at).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO timestamp
+			expect(meta.trash_deleted_by).toBe("r2-explorer");
+			expect(meta.schema_version).toBe("1");
+
+			// Assert trash_source is NOT present (removed per P11 alignment)
+			expect(meta.trash_source).toBeUndefined();
+		});
+
 		it("POST /api/buckets/NON_EXISTENT_BUCKET/delete - should return 500 if bucket binding does not exist", async () => {
 			const base64ObjectKey = btoa("test.txt");
 			const request = createTestRequest(
