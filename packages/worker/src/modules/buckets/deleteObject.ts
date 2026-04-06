@@ -2,6 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { auditLog } from "../../foundation/utils/auditLog";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
@@ -39,7 +40,7 @@ export class DeleteObject extends OpenAPIRoute {
 			});
 		}
 
-		const key = decodeURIComponent(escape(atob(data.body.key)));
+		const key = decodeBase64Key(data.body.key);
 		validateKey(key);
 
 		// Soft-delete: move to .trash/ instead of hard delete (VULN-47),

@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import { validateMetadataKeys } from "../../foundation/utils/validateMetadataKeys";
 import type { AppContext } from "../../types";
@@ -61,15 +62,13 @@ export class PutObject extends OpenAPIRoute {
 			});
 		}
 
-		const key = decodeURIComponent(escape(atob(data.query.key)));
+		const key = decodeBase64Key(data.query.key);
 		validateKey(key);
 
 		let customMetadata = undefined;
 		if (data.query.customMetadata) {
 			try {
-				customMetadata = JSON.parse(
-					decodeURIComponent(escape(atob(data.query.customMetadata))),
-				);
+				customMetadata = JSON.parse(decodeBase64Key(data.query.customMetadata));
 			} catch {
 				throw new HTTPException(400, {
 					message: "Invalid customMetadata: expected base64-encoded JSON",
@@ -80,9 +79,7 @@ export class PutObject extends OpenAPIRoute {
 		let httpMetadata = undefined;
 		if (data.query.httpMetadata) {
 			try {
-				httpMetadata = JSON.parse(
-					decodeURIComponent(escape(atob(data.query.httpMetadata))),
-				);
+				httpMetadata = JSON.parse(decodeBase64Key(data.query.httpMetadata));
 			} catch {
 				throw new HTTPException(400, {
 					message: "Invalid httpMetadata: expected base64-encoded JSON",

@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import { validateMetadataKeys } from "../../foundation/utils/validateMetadataKeys";
 import type { AppContext } from "../../types";
@@ -39,8 +40,8 @@ export class MoveObject extends OpenAPIRoute {
 			});
 		}
 
-		const oldKey = decodeURIComponent(escape(atob(data.body.oldKey)));
-		const newKey = decodeURIComponent(escape(atob(data.body.newKey)));
+		const oldKey = decodeBase64Key(data.body.oldKey);
+		const newKey = decodeBase64Key(data.body.newKey);
 		validateKey(oldKey);
 		validateKey(newKey);
 

@@ -1,5 +1,6 @@
 import { OpenAPIRoute } from "chanfana";
 import { z } from "zod";
+import { decodeBase64Key } from "../../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../../foundation/utils/validateKey";
 import type { AppContext } from "../../../types";
 
@@ -48,7 +49,7 @@ export class CompleteUpload extends OpenAPIRoute {
 		}
 
 		const uploadId = data.body.uploadId;
-		const key = decodeURIComponent(escape(atob(data.body.key)));
+		const key = decodeBase64Key(data.body.key);
 		validateKey(key);
 		const parts = data.body.parts as R2UploadedPart[];
 

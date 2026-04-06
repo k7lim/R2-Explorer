@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext, ShareMetadata } from "../../types";
 
@@ -57,7 +58,7 @@ export class CreateShareLink extends OpenAPIRoute {
 			});
 		}
 
-		const key = decodeURIComponent(escape(atob(data.params.key)));
+		const key = decodeBase64Key(data.params.key);
 		validateKey(key);
 
 		// Verify the file exists

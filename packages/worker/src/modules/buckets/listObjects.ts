@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import type { AppContext } from "../../types";
 
 export class ListObjects extends OpenAPIRoute {
@@ -42,7 +43,7 @@ export class ListObjects extends OpenAPIRoute {
 		return await bucket.list({
 			limit: data.query.limit,
 			prefix: data.query.prefix
-				? decodeURIComponent(escape(atob(data.query.prefix)))
+				? decodeBase64Key(data.query.prefix)
 				: undefined,
 			cursor: data.query.cursor,
 			startAfter: data.query.startAfter,

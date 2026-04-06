@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
@@ -36,7 +37,7 @@ export class CreateFolder extends OpenAPIRoute {
 				message: `Bucket binding not found: ${bucketName}`,
 			});
 		}
-		const key = decodeURIComponent(escape(atob(data.body.key)));
+		const key = decodeBase64Key(data.body.key);
 		validateKey(key);
 
 		// R2 doesn't have real folders. Create a zero-byte object with a trailing slash.
