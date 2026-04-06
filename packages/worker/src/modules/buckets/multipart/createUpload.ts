@@ -2,6 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { validateKey } from "../../../foundation/utils/validateKey";
+import { validateMetadataKeys } from "../../../foundation/utils/validateMetadataKeys";
 import type { AppContext } from "../../../types";
 
 export class CreateUpload extends OpenAPIRoute {
@@ -60,6 +61,8 @@ export class CreateUpload extends OpenAPIRoute {
 				});
 			}
 		}
+
+		validateMetadataKeys(customMetadata);
 
 		let httpMetadata = undefined;
 		if (data.query.httpMetadata) {
