@@ -140,7 +140,7 @@ import {
 	decode,
 } from "src/appUtils";
 import { parseMarkdown } from "src/parsers/markdown";
-import { sanitizeHtml, escapeHtml } from "src/utils/sanitize";
+import { escapeHtml, sanitizeHtml } from "src/utils/sanitize";
 
 export default {
 	components: {
