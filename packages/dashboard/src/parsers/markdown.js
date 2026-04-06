@@ -30,7 +30,8 @@ const isSafeUrl = (url) => {
 };
 
 // Replacer functions for Markdown
-const codeBlockReplacer = (fullMatch) => `\n<pre>${escapeHtml(fullMatch)}</pre>`;
+const codeBlockReplacer = (fullMatch) =>
+	`\n<pre>${escapeHtml(fullMatch)}</pre>`;
 const inlineCodeReplacer = (fullMatch, tagStart, tagContents) =>
 	`<code>${escapeHtml(tagContents)}</code>`;
 const imageReplacer = (fullMatch, tagTitle, tagURL) => {
@@ -42,13 +43,13 @@ const linkReplacer = (fullMatch, tagTitle, tagURL) => {
 	return `<a href="${escapeHtml(tagURL)}">${escapeHtml(tagTitle)}</a>`;
 };
 const headingReplacer = (fullMatch, tagStart, tagContents) =>
-	`\n<h${tagStart.trim().length}>${tagContents}</h${tagStart.trim().length}>`;
+	`\n<h${tagStart.trim().length}>${escapeHtml(tagContents)}</h${tagStart.trim().length}>`;
 const boldItalicsReplacer = (fullMatch, tagStart, tagContents) =>
-	`<${tagStart.trim().length === 1 ? "em" : "strong"}>${tagContents}</${tagStart.trim().length === 1 ? "em" : "strong"}>`;
+	`<${tagStart.trim().length === 1 ? "em" : "strong"}>${escapeHtml(tagContents)}</${tagStart.trim().length === 1 ? "em" : "strong"}>`;
 const strikethroughReplacer = (fullMatch, tagStart, tagContents) =>
-	`<del>${tagContents}</del>`;
+	`<del>${escapeHtml(tagContents)}</del>`;
 const blockquoteReplacer = (fullMatch, tagStart, tagContents) =>
-	`\n<blockquote>${tagContents}</blockquote>`;
+	`\n<blockquote>${escapeHtml(tagContents)}</blockquote>`;
 const horizontalRuleReplacer = (fullMatch) => "\n<hr />";
 const unorderedListReplacer = (fullMatch) => {
 	let items = "";
@@ -70,7 +71,8 @@ const orderedListReplacer = (fullMatch) => {
 		});
 	return `\n<ol>${items}</ol>`;
 };
-const paragraphReplacer = (fullMatch, tagContents) => `<p>${tagContents}</p>`;
+const paragraphReplacer = (fullMatch, tagContents) =>
+	`<p>${escapeHtml(tagContents)}</p>`;
 // Rules for Markdown parsing (use in order of appearance for best results)
 const replaceCodeBlocks = replaceRegex(codeBlockRegex, codeBlockReplacer);
 const replaceInlineCodes = replaceRegex(inlineCodeRegex, inlineCodeReplacer);
@@ -131,7 +133,9 @@ const replaceMarkdown = (str) =>
 			),
 		),
 	);
-// Parser for Markdown (fixes code, adds empty lines around for parsing)
-// Usage: parseMarkdown(strVar)
+/**
+ * Parses markdown to HTML.
+ * SECURITY: Output MUST be wrapped in sanitizeHtml() before use in v-html.
+ */
 export const parseMarkdown = (str) =>
 	fixCodeBlocks(replaceMarkdown(`\n${str}\n`)).trim();
