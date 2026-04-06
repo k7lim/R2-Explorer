@@ -96,6 +96,17 @@ describe("Bucket Endpoints", () => {
 			);
 		});
 
+		it("GET /api/buckets/:bucket - should reject reserved prefix .r2-explorer/", async () => {
+			const prefix = ".r2-explorer/sharable-links/";
+			const base64Prefix = btoa(prefix);
+			const request = createTestRequest(
+				`/api/buckets/MY_TEST_BUCKET_1?prefix=${encodeURIComponent(base64Prefix)}`,
+			);
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			expect(response.status).toBe(400);
+		});
+
 		it("GET /api/buckets/:bucket - should list objects with delimiter", async () => {
 			if (!MY_TEST_BUCKET_1)
 				throw new Error("MY_TEST_BUCKET_1 binding not available");

@@ -2,6 +2,7 @@ import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
+import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext } from "../../types";
 
 export class ListObjects extends OpenAPIRoute {
@@ -40,11 +41,13 @@ export class ListObjects extends OpenAPIRoute {
 			});
 		}
 
+		const prefix = data.query.prefix
+			? validateKey(decodeBase64Key(data.query.prefix))
+			: undefined;
+
 		return await bucket.list({
 			limit: data.query.limit,
-			prefix: data.query.prefix
-				? decodeBase64Key(data.query.prefix)
-				: undefined,
+			prefix,
 			cursor: data.query.cursor,
 			startAfter: data.query.startAfter,
 			delimiter: data.query.delimiter ? data.query.delimiter : "",
