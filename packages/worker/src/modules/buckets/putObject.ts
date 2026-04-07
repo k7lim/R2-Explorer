@@ -45,13 +45,7 @@ export class PutObject extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 
 		const bucketName = data.params.bucket;
-		const bucket = c.env[bucketName] as R2Bucket | undefined;
-
-		if (!bucket) {
-			throw new HTTPException(500, {
-				message: `Bucket binding not found: ${bucketName}`,
-			});
-		}
+		const bucket = c.env[bucketName] as R2Bucket;
 
 		// Reject uploads exceeding 100MB to prevent storage cost DoS (VULN-30)
 		const MAX_UPLOAD_SIZE = 100 * 1024 * 1024;

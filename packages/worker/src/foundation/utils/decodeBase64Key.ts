@@ -7,7 +7,9 @@ import { HTTPException } from "hono/http-exception";
  */
 export function decodeBase64Key(encoded: string): string {
 	try {
-		return decodeURIComponent(escape(atob(encoded)));
+		return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(
+			Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0)),
+		);
 	} catch {
 		throw new HTTPException(400, {
 			message: "Invalid key encoding: expected valid base64",

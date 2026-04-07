@@ -147,5 +147,42 @@ describe("main-store", () => {
 
 			expect(mockRouter.replace).toHaveBeenCalledWith("/other-bucket/files");
 		});
+
+		it.each([
+			{ payload: "/\\evil.com", label: "backslash" },
+			{ payload: "//evil.com", label: "double-slash (protocol-relative)" },
+			{ payload: "/%2fevil.com", label: "percent-encoded slash" },
+			{ payload: "/%5cevil.com", label: "percent-encoded backslash" },
+		])(
+			"rejects open-redirect payload: $label",
+			async ({ payload }) => {
+				const serverConfig = mockServerConfig();
+				vi.mocked(api.get).mockResolvedValue({ data: serverConfig });
+
+				const mockRouter = {
+					push: vi.fn(),
+					replace: vi.fn(),
+					currentRoute: { value: { fullPath: "/" } },
+				};
+
+				Object.defineProperty(window, "location", {
+					value: {
+						href: `http://localhost/?next=${encodeURIComponent(payload)}`,
+						origin: "http://localhost",
+						pathname: "/",
+					},
+					writable: true,
+				});
+
+				await store.loadServerConfigs(mockRouter as any, {} as any);
+
+				expect(mockRouter.replace).not.toHaveBeenCalled();
+				// Should fall through to files-home navigation
+				expect(mockRouter.push).toHaveBeenCalledWith({
+					name: "files-home",
+					params: { bucket: "my-bucket" },
+				});
+			},
+		);
 	});
 });

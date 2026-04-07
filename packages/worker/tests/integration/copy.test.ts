@@ -129,7 +129,7 @@ describe("CopyObject (POST /api/buckets/:bucket/copy)", () => {
 		expect(body).toContain("Source object not found");
 	});
 
-	it("should return 500 when bucket binding does not exist", async () => {
+	it("should return 404 via bucketValidationMiddleware when bucket binding does not exist", async () => {
 		const request = createTestRequest(
 			"/api/buckets/NON_EXISTENT_BUCKET/copy",
 			"POST",
@@ -140,9 +140,7 @@ describe("CopyObject (POST /api/buckets/:bucket/copy)", () => {
 			{ "Content-Type": "application/json" },
 		);
 		const response = await app.fetch(request, env, createExecutionContext());
-		expect(response.status).toBe(500);
-		const body = await response.text();
-		expect(body).toContain("Bucket binding not found: NON_EXISTENT_BUCKET");
+		expect(response.status).toBe(404);
 	});
 
 	it("should return 400 when source has reserved metadata keys", async () => {

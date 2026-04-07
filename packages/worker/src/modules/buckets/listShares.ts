@@ -1,5 +1,4 @@
 import { OpenAPIRoute } from "chanfana";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import type { AppContext, ShareMetadata } from "../../types";
 
@@ -44,13 +43,7 @@ export class ListShares extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 
 		const bucketName = data.params.bucket;
-		const bucket = c.env[bucketName] as R2Bucket | undefined;
-
-		if (!bucket) {
-			throw new HTTPException(500, {
-				message: `Bucket binding not found: ${bucketName}`,
-			});
-		}
+		const bucket = c.env[bucketName] as R2Bucket;
 
 		// List all share metadata files
 		const sharesList = await bucket.list({

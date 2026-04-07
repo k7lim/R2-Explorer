@@ -35,18 +35,7 @@ export class CompleteUpload extends OpenAPIRoute {
 	async handle(c: AppContext) {
 		const data = await this.getValidatedData<typeof this.schema>();
 
-		const bucket = c.env[data.params.bucket];
-
-		if (
-			!bucket ||
-			typeof bucket !== "object" ||
-			!("resumeMultipartUpload" in bucket)
-		) {
-			return Response.json(
-				{ error: `Bucket binding not found: ${data.params.bucket}` },
-				{ status: 500 },
-			);
-		}
+		const bucket = c.env[data.params.bucket] as R2Bucket;
 
 		const uploadId = data.body.uploadId;
 		const key = decodeBase64Key(data.body.key);

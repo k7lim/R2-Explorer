@@ -1,5 +1,4 @@
 import { OpenAPIRoute } from "chanfana";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
@@ -30,13 +29,8 @@ export class CreateFolder extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 
 		const bucketName = data.params.bucket;
-		const bucket = c.env[bucketName] as R2Bucket | undefined;
+		const bucket = c.env[bucketName] as R2Bucket;
 
-		if (!bucket) {
-			throw new HTTPException(500, {
-				message: `Bucket binding not found: ${bucketName}`,
-			});
-		}
 		const key = decodeBase64Key(data.body.key);
 		validateKey(key);
 

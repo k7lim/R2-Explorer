@@ -34,13 +34,7 @@ export class CopyObject extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 
 		const bucketName = data.params.bucket;
-		const bucket = c.env[bucketName] as R2Bucket | undefined;
-
-		if (!bucket) {
-			throw new HTTPException(500, {
-				message: `Bucket binding not found: ${bucketName}`,
-			});
-		}
+		const bucket = c.env[bucketName] as R2Bucket;
 
 		const sourceKey = decodeBase64Key(data.body.sourceKey);
 		const destinationKey = decodeBase64Key(data.body.destinationKey);

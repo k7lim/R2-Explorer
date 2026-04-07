@@ -108,27 +108,24 @@ describe("Object Specific Endpoints", () => {
 			await response.text(); // Consume body
 		});
 
-		it("should return 500 if bucket binding does not exist (HEAD method)", async () => {
+		it("should return 404 via bucketValidationMiddleware (HEAD method)", async () => {
 			const base64Key = btoa(TEST_OBJECT_KEY);
 			const request = createTestRequest(
 				`/api/buckets/NON_EXISTENT_BUCKET/${base64Key}`,
 				"HEAD",
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			// HEAD requests don't return bodies
+			expect(response.status).toBe(404);
 		});
 
-		it("should return 500 if bucket binding does not exist (GET .../head method)", async () => {
+		it("should return 404 via bucketValidationMiddleware (GET .../head method)", async () => {
 			const base64Key = btoa(TEST_OBJECT_KEY);
 			const request = createTestRequest(
 				`/api/buckets/NON_EXISTENT_BUCKET/${base64Key}/head`,
 				"GET",
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const bodyText = await response.text();
-			expect(bodyText).toContain("Bucket binding not found: NON_EXISTENT_BUCKET");
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -165,16 +162,14 @@ describe("Object Specific Endpoints", () => {
 			await response.text(); // Consume body
 		});
 
-		it("should return 500 if bucket binding does not exist", async () => {
+		it("should return 404 via bucketValidationMiddleware for non-existent bucket", async () => {
 			const base64Key = btoa(TEST_OBJECT_KEY);
 			const request = createTestRequest(
 				`/api/buckets/NON_EXISTENT_BUCKET/${base64Key}`,
 				"GET",
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const body = (await response.text());
-			expect(body).toContain("Bucket binding not found: NON_EXISTENT_BUCKET");
+			expect(response.status).toBe(404);
 		});
 
 		// Basic Range request test - R2 supports this automatically
@@ -292,7 +287,7 @@ describe("Object Specific Endpoints", () => {
 			// expect(response.status).toBe(500);
 		});
 
-		it("should return 500 if bucket binding does not exist", async () => {
+		it("should return 404 via bucketValidationMiddleware for non-existent bucket", async () => {
 			const request = createTestRequest(
 				`/api/buckets/NON_EXISTENT_BUCKET/${base64Key}`,
 				"POST",
@@ -300,9 +295,7 @@ describe("Object Specific Endpoints", () => {
 				{ "Content-Type": "application/json" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			const body = (await response.text());
-			expect(response.status).toBe(500);
-			expect(body).toContain("Bucket binding not found: NON_EXISTENT_BUCKET");
+			expect(response.status).toBe(404);
 		});
 
 		it("should return 400 for invalid JSON in request body", async () => {

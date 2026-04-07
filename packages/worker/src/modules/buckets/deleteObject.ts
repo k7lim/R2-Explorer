@@ -1,5 +1,4 @@
 import { OpenAPIRoute } from "chanfana";
-import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { auditLog } from "../../foundation/utils/auditLog";
 import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
@@ -30,15 +29,8 @@ export class DeleteObject extends OpenAPIRoute {
 	async handle(c: AppContext) {
 		const data = await this.getValidatedData<typeof this.schema>();
 
-		const bucketName = data.params.bucket; // Store bucket name
-		const bucket = c.env[bucketName] as R2Bucket | undefined; // Explicitly type as potentially undefined
-
-		if (!bucket) {
-			// Using Hono's HTTPException for proper error response
-			throw new HTTPException(500, {
-				message: `Bucket binding not found: ${bucketName}`,
-			});
-		}
+		const bucketName = data.params.bucket;
+		const bucket = c.env[bucketName] as R2Bucket;
 
 		const key = decodeBase64Key(data.body.key);
 		validateKey(key);

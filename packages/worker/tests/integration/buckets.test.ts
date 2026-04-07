@@ -164,11 +164,10 @@ describe("Bucket Endpoints", () => {
 			expect(body2.truncated).toBe(false);
 		});
 
-		it("GET /api/buckets/NON_EXISTENT_BUCKET - should return 400 if bucket binding does not exist", async () => {
+		it("GET /api/buckets/NON_EXISTENT_BUCKET - should return 404 via bucketValidationMiddleware", async () => {
 			const request = createTestRequest("/api/buckets/NON_EXISTENT_BUCKET");
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			expect(await response.text()).toBe("Bucket binding not found: NON_EXISTENT_BUCKET");
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -329,7 +328,7 @@ describe("Bucket Endpoints", () => {
 			expect(body).toContain("Invalid httpMetadata");
 		});
 
-		it("POST /api/buckets/NON_EXISTENT_BUCKET/upload - should return 500 if bucket binding does not exist", async () => {
+		it("POST /api/buckets/NON_EXISTENT_BUCKET/upload - should return 404 via bucketValidationMiddleware", async () => {
 			const base64ObjectKey = btoa("test.txt");
 			const blobBody = new Blob(["content"], {
 				type: "application/octet-stream",
@@ -341,7 +340,7 @@ describe("Bucket Endpoints", () => {
 				{ "Content-Type": "application/octet-stream" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -469,7 +468,7 @@ describe("Bucket Endpoints", () => {
 			expect(meta.trash_source).toBeUndefined();
 		});
 
-		it("POST /api/buckets/NON_EXISTENT_BUCKET/delete - should return 500 if bucket binding does not exist", async () => {
+		it("POST /api/buckets/NON_EXISTENT_BUCKET/delete - should return 404 via bucketValidationMiddleware", async () => {
 			const base64ObjectKey = btoa("test.txt");
 			const request = createTestRequest(
 				"/api/buckets/NON_EXISTENT_BUCKET/delete",
@@ -479,7 +478,7 @@ describe("Bucket Endpoints", () => {
 			);
 
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500); // Expecting 500 due to error accessing .delete on undefined
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -577,7 +576,7 @@ describe("Bucket Endpoints", () => {
 			expect(response.status).toBe(400); // Zod validation should fail
 		});
 
-		it("should return 500 if bucket binding does not exist", async () => {
+		it("should return 404 via bucketValidationMiddleware for non-existent bucket", async () => {
 			const base64SourceKey = btoa(SOURCE_KEY);
 			const base64DestKey = btoa(DEST_KEY);
 			const request = createTestRequest(
@@ -587,11 +586,7 @@ describe("Bucket Endpoints", () => {
 				{ "Content-Type": "application/json" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const bodyText = await response.text(); // Workaround for non-JSON response
-			expect(bodyText).toContain(
-				"Bucket binding not found: NON_EXISTENT_BUCKET",
-			);
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -670,7 +665,7 @@ describe("Bucket Endpoints", () => {
 			expect(response.status).toBe(400); // Zod validation should fail
 		});
 
-		it("should return 500 if bucket binding does not exist", async () => {
+		it("should return 404 via bucketValidationMiddleware for non-existent bucket", async () => {
 			const base64FolderName = btoa(FOLDER_NAME);
 			const request = createTestRequest(
 				"/api/buckets/NON_EXISTENT_BUCKET/folder",
@@ -679,11 +674,7 @@ describe("Bucket Endpoints", () => {
 				{ "Content-Type": "application/json" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const bodyText = await response.text(); // Workaround for non-JSON response
-			expect(bodyText).toContain(
-				"Bucket binding not found: NON_EXISTENT_BUCKET",
-			);
+			expect(response.status).toBe(404);
 		});
 	});
 });

@@ -34,18 +34,7 @@ export class CreateUpload extends OpenAPIRoute {
 	async handle(c: AppContext) {
 		const data = await this.getValidatedData<typeof this.schema>();
 
-		const bucket = c.env[data.params.bucket];
-
-		if (
-			!bucket ||
-			typeof bucket !== "object" ||
-			!("createMultipartUpload" in bucket)
-		) {
-			return Response.json(
-				{ error: `Bucket binding not found: ${data.params.bucket}` },
-				{ status: 500 },
-			);
-		}
+		const bucket = c.env[data.params.bucket] as R2Bucket;
 
 		const key = decodeBase64Key(data.query.key);
 		validateKey(key);

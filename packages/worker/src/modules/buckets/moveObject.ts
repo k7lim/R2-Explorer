@@ -32,13 +32,7 @@ export class MoveObject extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 
 		const bucketName = data.params.bucket;
-		const bucket = c.env[bucketName] as R2Bucket | undefined;
-
-		if (!bucket) {
-			throw new HTTPException(500, {
-				message: `Bucket binding not found: ${bucketName}`,
-			});
-		}
+		const bucket = c.env[bucketName] as R2Bucket;
 
 		const oldKey = decodeBase64Key(data.body.oldKey);
 		const newKey = decodeBase64Key(data.body.newKey);

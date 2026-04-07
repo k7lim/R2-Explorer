@@ -39,9 +39,24 @@ export const useMainStore = defineStore("main", {
 
 				const url = new URL(window.location.href);
 				const nextParam = url.searchParams.get("next");
-				// Validate next parameter to prevent open redirect (VULN-32):
-				// must start with "/" and must not start with "//" (protocol-relative URL)
-				if (nextParam?.startsWith("/") && !nextParam.startsWith("//")) {
+				// Validate next parameter to prevent open redirect (VULN-32, fp-hvz):
+				// Reject backslashes and percent-encoded slashes before any other check,
+				// then decode and ensure the value is a safe root-relative path.
+				let nextSafe = false;
+				if (nextParam) {
+					const hasEncodedTraversal = /[\\]|%2f|%5c/i.test(nextParam);
+					if (!hasEncodedTraversal) {
+						try {
+							const decoded = decodeURIComponent(nextParam);
+							if (/^\/[^/\\]/.test(decoded)) {
+								nextSafe = true;
+							}
+						} catch (_) {
+							// malformed URI – reject
+						}
+					}
+				}
+				if (nextSafe) {
 					await router.replace(nextParam);
 				} else if (url.pathname === "/" || url.pathname === "/auth/login") {
 					await router.push({

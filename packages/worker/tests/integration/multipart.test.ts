@@ -79,7 +79,7 @@ describe("Multipart Upload Endpoints", () => {
 			expect(typeof body.uploadId).toBe("string");
 		});
 
-		it("should return 500 for a non-existent bucket", async () => {
+		it("should return 404 via bucketValidationMiddleware for a non-existent bucket", async () => {
 			const objectKey = "multipart-test-nobucket.dat";
 			const base64ObjectKey = btoa(objectKey);
 
@@ -91,9 +91,7 @@ describe("Multipart Upload Endpoints", () => {
 			);
 
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const errorText = await response.text();
-			expect(errorText).toContain("Bucket binding not found");
+			expect(response.status).toBe(404);
 		});
 
 		it("should return 400 if key is missing", async () => {
@@ -300,7 +298,7 @@ describe("Multipart Upload Endpoints", () => {
 			expect(response.status).toBe(400); // Zod validation
 		});
 
-		it("should return 500 for a non-existent bucket", async () => {
+		it("should return 404 via bucketValidationMiddleware for a non-existent bucket", async () => {
 			const partNumber = 1;
 			const partData = await createPart("data");
 			const request = createTestRequest(
@@ -310,9 +308,7 @@ describe("Multipart Upload Endpoints", () => {
 				{ "Content-Type": "application/octet-stream" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const errorText = await response.text();
-			expect(errorText).toContain("Bucket binding not found");
+			expect(response.status).toBe(404);
 		});
 	});
 
@@ -442,7 +438,7 @@ describe("Multipart Upload Endpoints", () => {
 			expect(errorBody.msg).toMatch(/We encountered an internal error/i); // Or more specific if R2 changes
 		});
 
-		it("should return 500 for completion on a non-existent bucket", async () => {
+		it("should return 404 via bucketValidationMiddleware for completion on a non-existent bucket", async () => {
 			const completeBody = {
 				key: base64ObjectKey,
 				uploadId: uploadId,
@@ -455,9 +451,7 @@ describe("Multipart Upload Endpoints", () => {
 				{ "Content-Type": "application/json" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(500);
-			const errorText = await response.text();
-			expect(errorText).toContain("Bucket binding not found");
+			expect(response.status).toBe(404);
 		});
 	});
 });
