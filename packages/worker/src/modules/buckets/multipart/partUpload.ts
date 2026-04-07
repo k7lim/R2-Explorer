@@ -1,4 +1,5 @@
 import { OpenAPIRoute } from "chanfana";
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { decodeBase64Key } from "../../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../../foundation/utils/validateKey";
@@ -50,7 +51,7 @@ export class PartUpload extends OpenAPIRoute {
 				c.req.raw.body,
 			);
 		} catch (error: any) {
-			return new Response(error.message, { status: 400 });
+			throw new HTTPException(400, { message: error.message });
 		}
 	}
 }

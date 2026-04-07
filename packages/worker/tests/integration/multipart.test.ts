@@ -413,9 +413,9 @@ describe("Multipart Upload Endpoints", () => {
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
 			expect(response.status).toBe(400);
-			const errorBody = (await response.json()) as { msg: string };
+			const errorText = await response.text();
 			// R2 error messages can vary, check for common patterns
-			expect(errorBody.msg).toMatch(
+			expect(errorText).toMatch(
 				/One or more of the specified parts could not be found/i,
 			);
 		});
@@ -433,9 +433,9 @@ describe("Multipart Upload Endpoints", () => {
 				{ "Content-Type": "application/json" },
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
-			expect(response.status).toBe(400); // The handler catches errors and returns 400 with JSON
-			const errorBody = (await response.json()) as { msg: string };
-			expect(errorBody.msg).toMatch(/We encountered an internal error/i); // Or more specific if R2 changes
+			expect(response.status).toBe(400);
+			const errorText = await response.text();
+			expect(errorText).toMatch(/We encountered an internal error/i);
 		});
 
 		it("should return 404 via bucketValidationMiddleware for completion on a non-existent bucket", async () => {

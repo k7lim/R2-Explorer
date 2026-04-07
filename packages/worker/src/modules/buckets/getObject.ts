@@ -1,4 +1,5 @@
 import { OpenAPIRoute } from "chanfana";
+import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
@@ -35,7 +36,7 @@ export class GetObject extends OpenAPIRoute {
 		const object = await bucket.get(filePath);
 
 		if (object === null) {
-			return Response.json({ msg: "Object Not Found" }, { status: 404 });
+			throw new HTTPException(404, { message: "Object Not Found" });
 		}
 
 		const headers = new Headers();
