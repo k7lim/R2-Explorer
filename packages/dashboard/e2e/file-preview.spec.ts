@@ -89,7 +89,7 @@ test.describe("File preview", () => {
 		});
 	});
 
-	test("previews an HTML file", async ({ page }) => {
+	test("previews an HTML file as source (fp-pqv Option A)", async ({ page }) => {
 		await page.goto(`/${BUCKET}/files`);
 		await expect(page.locator("text=e2e-preview.html")).toBeVisible({
 			timeout: 10_000,
@@ -97,13 +97,18 @@ test.describe("File preview", () => {
 
 		await page.locator("text=e2e-preview.html").dblclick();
 
-		// HTML content is rendered via v-html in a <pre> tag
-		await expect(page.locator(".q-dialog").locator("text=Test HTML")).toBeVisible({
-			timeout: 10_000,
-		});
-		await expect(
-			page.locator(".q-dialog").locator("text=Hello world"),
-		).toBeVisible();
+		// fp-pqv Option A: HTML files are shown as source in a <pre>, not rendered as DOM.
+		// File browser semantics — user sees what they uploaded, tags and all.
+		const preview = page.locator(".q-dialog pre").first();
+		await expect(preview).toBeVisible({ timeout: 10_000 });
+
+		// Raw tag literals must be visible (proves source-view, not rendered)
+		await expect(preview).toContainText("<h1>Test HTML</h1>");
+		await expect(preview).toContainText("<p>Hello world</p>");
+
+		// Must NOT construct live DOM — no child <h1> or <p> inside the preview pre
+		await expect(preview.locator("h1")).toHaveCount(0);
+		await expect(preview.locator("p")).toHaveCount(0);
 	});
 
 	test("shows filename in preview header", async ({ page }) => {

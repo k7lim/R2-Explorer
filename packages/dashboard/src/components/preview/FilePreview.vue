@@ -91,7 +91,8 @@
           </template>
 
           <template v-else-if="type === 'html'">
-            <pre v-html="sanitizeHtml(fileData)"></pre>
+            <!-- fp-pqv: source view, not rendered. HTML files are browsed as data, not executed. -->
+            <pre v-text="fileData"></pre>
           </template>
 
           <template v-else-if="type === 'markdown'">
