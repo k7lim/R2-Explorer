@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 /**
  * Characterization test: pins createShareLink and getShareLink PBKDF2 code
@@ -11,8 +11,8 @@ import { describe, it, expect } from "vitest";
 
 const FIXTURE_PASSWORD = "test-password-fp-ckz";
 const FIXTURE_SALT = new Uint8Array([
-	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
-	0x0c, 0x0d, 0x0e, 0x0f,
+	0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+	0x0d, 0x0e, 0x0f,
 ]);
 const FIXTURE_SALT_HEX = "000102030405060708090a0b0c0d0e0f";
 
@@ -80,10 +80,7 @@ async function hashLikeGetShareLink(
 
 describe("PBKDF2 parity: createShareLink ↔ getShareLink", () => {
 	it("both handlers produce identical hashes for the same password and salt", async () => {
-		const hashA = await hashLikeCreateShareLink(
-			FIXTURE_PASSWORD,
-			FIXTURE_SALT,
-		);
+		const hashA = await hashLikeCreateShareLink(FIXTURE_PASSWORD, FIXTURE_SALT);
 		const hashB = await hashLikeGetShareLink(
 			FIXTURE_PASSWORD,
 			FIXTURE_SALT_HEX,
@@ -93,10 +90,7 @@ describe("PBKDF2 parity: createShareLink ↔ getShareLink", () => {
 	});
 
 	it("output matches pinned expected hex (guards against synchronized drift)", async () => {
-		const hashA = await hashLikeCreateShareLink(
-			FIXTURE_PASSWORD,
-			FIXTURE_SALT,
-		);
+		const hashA = await hashLikeCreateShareLink(FIXTURE_PASSWORD, FIXTURE_SALT);
 
 		expect(hashA).toBe(EXPECTED_HEX);
 	});

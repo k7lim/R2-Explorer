@@ -107,8 +107,7 @@ describe("Multipart Upload Endpoints", () => {
 		});
 
 		it("should return 400 for malformed customMetadata", async () => {
-			if (!MY_TEST_BUCKET_1)
-				throw new Error("MY_TEST_BUCKET_1 not available");
+			if (!MY_TEST_BUCKET_1) throw new Error("MY_TEST_BUCKET_1 not available");
 
 			const objectKey = "bad-metadata.dat";
 			const base64ObjectKey = btoa(objectKey);
@@ -128,8 +127,7 @@ describe("Multipart Upload Endpoints", () => {
 		});
 
 		it("should return 400 when customMetadata contains reserved lock_ key", async () => {
-			if (!MY_TEST_BUCKET_1)
-				throw new Error("MY_TEST_BUCKET_1 not available");
+			if (!MY_TEST_BUCKET_1) throw new Error("MY_TEST_BUCKET_1 not available");
 
 			const objectKey = "reserved-key-lock.dat";
 			const base64ObjectKey = btoa(objectKey);
@@ -149,12 +147,13 @@ describe("Multipart Upload Endpoints", () => {
 		});
 
 		it("should return 400 when customMetadata contains reserved trash_ key", async () => {
-			if (!MY_TEST_BUCKET_1)
-				throw new Error("MY_TEST_BUCKET_1 not available");
+			if (!MY_TEST_BUCKET_1) throw new Error("MY_TEST_BUCKET_1 not available");
 
 			const objectKey = "reserved-key-trash.dat";
 			const base64ObjectKey = btoa(objectKey);
-			const reservedMetadata = btoa(JSON.stringify({ trash_original_path: "/foo" }));
+			const reservedMetadata = btoa(
+				JSON.stringify({ trash_original_path: "/foo" }),
+			);
 
 			const request = createTestRequest(
 				`/api/buckets/${BUCKET_NAME}/multipart/create?key=${encodeURIComponent(base64ObjectKey)}&customMetadata=${encodeURIComponent(reservedMetadata)}`,
@@ -170,12 +169,13 @@ describe("Multipart Upload Endpoints", () => {
 		});
 
 		it("should accept customMetadata with non-reserved keys", async () => {
-			if (!MY_TEST_BUCKET_1)
-				throw new Error("MY_TEST_BUCKET_1 not available");
+			if (!MY_TEST_BUCKET_1) throw new Error("MY_TEST_BUCKET_1 not available");
 
 			const objectKey = "safe-metadata.dat";
 			const base64ObjectKey = btoa(objectKey);
-			const safeMetadata = btoa(JSON.stringify({ author: "test", version: "1" }));
+			const safeMetadata = btoa(
+				JSON.stringify({ author: "test", version: "1" }),
+			);
 
 			const request = createTestRequest(
 				`/api/buckets/${BUCKET_NAME}/multipart/create?key=${encodeURIComponent(base64ObjectKey)}&customMetadata=${encodeURIComponent(safeMetadata)}`,
@@ -192,8 +192,7 @@ describe("Multipart Upload Endpoints", () => {
 		});
 
 		it("should return 400 for malformed httpMetadata", async () => {
-			if (!MY_TEST_BUCKET_1)
-				throw new Error("MY_TEST_BUCKET_1 not available");
+			if (!MY_TEST_BUCKET_1) throw new Error("MY_TEST_BUCKET_1 not available");
 
 			const objectKey = "bad-metadata.dat";
 			const base64ObjectKey = btoa(objectKey);
