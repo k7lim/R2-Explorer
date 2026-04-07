@@ -49,7 +49,6 @@
                   id="renderWindow"
                   :srcdoc="srcdoc"
                   sandbox="allow-popups allow-popups-to-escape-sandbox"
-                  csp="script-src 'none'"
           />
           <div v-else v-html="escapeHtml(file.text).replaceAll('\n', '<br>')"></div>
         </div>
@@ -93,7 +92,7 @@
 <script>
 import { api } from "boot/axios";
 import { useQuasar } from "quasar";
-import { escapeHtml } from "src/utils/sanitize";
+import { escapeHtml, sanitizeHtml } from "src/utils/sanitize";
 import { useMainStore } from "stores/main-store";
 import { defineComponent } from "vue";
 import { apiHandler, decode, encode, timeSince } from "../../appUtils";
@@ -166,16 +165,20 @@ export default defineComponent({
 			const filename = fileName.split(".json")[0];
 
 			this.file = fileData.data;
-			let htmlContent = fileData.data.html;
+			const htmlContent = fileData.data.html;
 
 			if (htmlContent) {
-				// Add target blank to all links
-				htmlContent = htmlContent.replaceAll(
-					/<a(.*?)>(.*?)<\/a>/gi,
-					'<a$1 target="_blank">$2</a>',
-				);
+				const parser = new DOMParser();
+				const doc = parser.parseFromString(htmlContent, "text/html");
 
-				// Inject attachment url and replace in html to point to correct path
+				// Add target blank to all links via DOM traversal
+				for (const anchor of doc.querySelectorAll("a")) {
+					anchor.setAttribute("target", "_blank");
+					anchor.setAttribute("rel", "noopener noreferrer");
+				}
+
+				// Build a cid-to-URL map from attachments
+				const cidMap = new Map();
 				for (const att of fileData.data.attachments) {
 					att.display = true;
 					att.downloadUrl = `${this.mainStore.serverUrl}/api/buckets/${this.selectedBucket}/${encode(`.r2-explorer/emails/${this.selectedFolder}/${filename}/${att.filename}`)}`;
@@ -185,19 +188,25 @@ export default defineComponent({
 						if (contentId.startsWith("<") && contentId.endsWith(">")) {
 							contentId = contentId.substring(1, contentId.length - 1);
 						}
-
-						const matchString = `cid:${contentId}`;
-						if (htmlContent.includes(matchString)) {
-							htmlContent = htmlContent.replaceAll(
-								`cid:${contentId}`,
-								att.downloadUrl,
-							);
-							att.display = false;
-						}
+						cidMap.set(`cid:${contentId}`, { url: att.downloadUrl, att });
 					}
 				}
 
-				this.srcdoc = htmlContent;
+				// Replace cid: references in img src attributes
+				for (const img of doc.querySelectorAll("img")) {
+					const src = img.getAttribute("src");
+					if (src && cidMap.has(src)) {
+						const entry = cidMap.get(src);
+						img.setAttribute("src", entry.url);
+						entry.att.display = false;
+					}
+				}
+
+				// Sanitize then wrap with portable CSP meta tag
+				const sanitized = sanitizeHtml(doc.documentElement.outerHTML);
+				const META_CSP =
+					"<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; img-src * data: blob:; style-src 'unsafe-inline'; font-src * data:\">";
+				this.srcdoc = `<!doctype html><html><head>${META_CSP}</head><body>${sanitized}</body></html>`;
 			}
 
 			this.attachments = fileData.data.attachments.filter((obj) => obj.display);
