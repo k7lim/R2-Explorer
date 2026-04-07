@@ -10,7 +10,10 @@ import { cors } from "hono/cors";
 import { z } from "zod";
 import { bucketValidationMiddleware } from "./foundation/middlewares/bucketValidation";
 import { csrfProtection } from "./foundation/middlewares/csrfProtection";
-import { shareRateLimiter } from "./foundation/middlewares/rateLimiter";
+import {
+	authRateLimiter,
+	shareRateLimiter,
+} from "./foundation/middlewares/rateLimiter";
 import { readOnlyMiddleware } from "./foundation/middlewares/readonly";
 import { securityHeadersMiddleware } from "./foundation/middlewares/securityHeaders";
 import { settings } from "./foundation/settings";
@@ -121,6 +124,9 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 			type: "http",
 			scheme: "basic",
 		});
+		// fp-mmt Gap A: rate limit auth attempts BEFORE basicAuth so password
+		// spraying hits a wall regardless of credential validity (VULN-14).
+		app.use("/api/*", authRateLimiter);
 		app.use(
 			"/api/*",
 			basicAuth({

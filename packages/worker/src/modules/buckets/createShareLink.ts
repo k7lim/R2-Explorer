@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { auditLog } from "../../foundation/utils/auditLog";
 import { decodeBase64Key } from "../../foundation/utils/decodeBase64Key";
 import { validateKey } from "../../foundation/utils/validateKey";
 import type { AppContext, ShareMetadata } from "../../types";
@@ -145,6 +146,17 @@ export class CreateShareLink extends OpenAPIRoute {
 
 		// Construct share URL
 		const shareUrl = `${new URL(c.req.url).origin}/share/${shareId}`;
+
+		// fp-mmt Gap C: audit share-link creation (VULN-38). P12: never log
+		// passwordHash, passwordSalt, or any credential material.
+		auditLog("share_created", {
+			shareId,
+			bucket: bucketName,
+			key,
+			expiresAt,
+			maxDownloads: shareMetadata.maxDownloads,
+			createdBy: shareMetadata.createdBy,
+		});
 
 		return c.json({
 			shareId,

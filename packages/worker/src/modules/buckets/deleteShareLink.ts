@@ -1,6 +1,7 @@
 import { OpenAPIRoute } from "chanfana";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
+import { auditLog } from "../../foundation/utils/auditLog";
 import type { AppContext } from "../../types";
 
 export class DeleteShareLink extends OpenAPIRoute {
@@ -47,6 +48,14 @@ export class DeleteShareLink extends OpenAPIRoute {
 
 		// Delete the share metadata
 		await bucket.delete(shareKey);
+
+		// fp-mmt Gap D: audit share-link deletion (VULN-38). P12: include
+		// the deleter identity but never credential material.
+		auditLog("share_deleted", {
+			shareId,
+			bucket: bucketName,
+			deletedBy: c.get("authentication_username") || "anonymous",
+		});
 
 		return c.json({ success: true });
 	}

@@ -1,5 +1,5 @@
 import { createExecutionContext, env } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestApp, createTestRequest } from "./setup";
 
 describe("Share Links Endpoints", () => {
@@ -551,6 +551,104 @@ describe("Share Links Endpoints", () => {
 			);
 
 			expect(response.status).toBe(404);
+		});
+	});
+
+	// fp-mmt Gaps C+D — share lifecycle audit logging.
+	describe("Audit logging (fp-mmt)", () => {
+		function readAudits(spy: ReturnType<typeof vi.spyOn>) {
+			const calls: Array<Record<string, unknown>> = [];
+			for (const call of spy.mock.calls) {
+				const first = call[0];
+				if (typeof first !== "string") continue;
+				try {
+					const parsed = JSON.parse(first) as Record<string, unknown>;
+					if (parsed?.audit === true) {
+						calls.push(parsed);
+					}
+				} catch {
+					// not an audit line
+				}
+			}
+			return calls;
+		}
+
+		it("emits share_created on createShareLink success", async () => {
+			const spy = vi.spyOn(console, "log");
+			try {
+				const encodedKey = btoa(testFileName);
+				const response = await app.fetch(
+					createTestRequest(
+						`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+						"POST",
+						{ expiresIn: 3600, maxDownloads: 5 },
+					),
+					env,
+					createExecutionContext(),
+				);
+				expect(response.status).toBe(200);
+				const body = (await response.json()) as { shareId: string };
+
+				const audits = readAudits(spy);
+				const created = audits.find(
+					(a) => a.event === "share_created" && a.shareId === body.shareId,
+				);
+				expect(created).toBeDefined();
+				expect(created).toMatchObject({
+					event: "share_created",
+					bucket: "MY_TEST_BUCKET_1",
+					key: testFileName,
+					maxDownloads: 5,
+				});
+				expect(created?.expiresAt).toBeDefined();
+				// P12: never serialize credential material in audit payload.
+				const serialized = JSON.stringify(created);
+				expect(serialized).not.toContain("passwordHash");
+				expect(serialized).not.toContain("passwordSalt");
+			} finally {
+				spy.mockRestore();
+			}
+		});
+
+		it("emits share_deleted on deleteShareLink success", async () => {
+			// Pre-create a share with a separate (un-spied) call.
+			const encodedKey = btoa(testFileName);
+			const createResponse = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{},
+				),
+				env,
+				createExecutionContext(),
+			);
+			const { shareId } = (await createResponse.json()) as { shareId: string };
+
+			const spy = vi.spyOn(console, "log");
+			try {
+				const response = await app.fetch(
+					createTestRequest(
+						`/api/buckets/MY_TEST_BUCKET_1/share/${shareId}`,
+						"DELETE",
+					),
+					env,
+					createExecutionContext(),
+				);
+				expect(response.status).toBe(200);
+
+				const audits = readAudits(spy);
+				const deleted = audits.find(
+					(a) => a.event === "share_deleted" && a.shareId === shareId,
+				);
+				expect(deleted).toBeDefined();
+				expect(deleted).toMatchObject({
+					event: "share_deleted",
+					bucket: "MY_TEST_BUCKET_1",
+				});
+				expect(deleted?.deletedBy).toBeDefined();
+			} finally {
+				spy.mockRestore();
+			}
 		});
 	});
 });

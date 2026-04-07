@@ -51,13 +51,21 @@ export class GetShareLink extends OpenAPIRoute {
 		const data = await this.getValidatedData<typeof this.schema>();
 		const shareId = data.params.shareId;
 
-		// Search only verified R2 buckets for the share metadata (VULN-26)
-		// Use constructor name check instead of iterating all env bindings,
-		// which avoids probing non-R2 bindings and leaking timing info.
+		// fp-mmt Gap B: prefer the WP-1 config bucket allowlist when present
+		// (VULN-26). When config.buckets is set, only those bucket bindings
+		// are probed for the share — eliminates the timing/oracle surface of
+		// touching unrelated bindings. Falls back to the constructor-name
+		// check on Object.entries(c.env) for backward compat with deployments
+		// that have not adopted config.buckets yet.
 		let shareMetadata: ShareMetadata | null = null;
 		let bucket: R2Bucket | null = null;
 
-		for (const [key, value] of Object.entries(c.env)) {
+		const configBuckets = c.get("config")?.buckets;
+		const candidates: Array<[string, unknown]> = configBuckets
+			? Object.keys(configBuckets).map((name) => [name, c.env[name]])
+			: Object.entries(c.env);
+
+		for (const [_key, value] of candidates) {
 			if (
 				!value ||
 				typeof value !== "object" ||
