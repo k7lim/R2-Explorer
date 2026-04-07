@@ -50,7 +50,7 @@
                   :srcdoc="srcdoc"
                   sandbox="allow-popups allow-popups-to-escape-sandbox"
           />
-          <div v-else v-html="escapeHtml(file.text).replaceAll('\n', '<br>')"></div>
+          <div v-else v-html="textFallbackHtml"></div>
         </div>
       </q-card-actions>
 
@@ -104,6 +104,7 @@ export default defineComponent({
 		file: null,
 		fileHead: null,
 		timeInterval: null,
+		loadTimeout: null,
 		attachments: [],
 	}),
 	computed: {
@@ -120,6 +121,11 @@ export default defineComponent({
 			const fileName = decode(this.selectedFile);
 			return `.r2-explorer/emails/${this.selectedFolder}/${fileName}`;
 		},
+		// fp-e3v: cache escapeHtml output for the text fallback branch
+		textFallbackHtml() {
+			if (!this.file?.text) return "";
+			return escapeHtml(this.file.text).replaceAll("\n", "<br>");
+		},
 	},
 	watch: {
 		selectedBucket(newVal) {
@@ -131,10 +137,14 @@ export default defineComponent({
 	},
 	methods: {
 		timeSince,
-		escapeHtml,
 		contentFinishedLoading() {
 			clearInterval(this.timeInterval);
 			this.timeInterval = null;
+			// fp-e3v: also clear the safety-net load timeout if it's still pending
+			if (this.loadTimeout !== null) {
+				clearTimeout(this.loadTimeout);
+				this.loadTimeout = null;
+			}
 
 			this.resizeIframe();
 		},
@@ -228,7 +238,8 @@ export default defineComponent({
 					}
 				});
 
-			setTimeout(() => {
+			// fp-e3v: store the handle so beforeUnmount can clear it on early unmount
+			this.loadTimeout = setTimeout(() => {
 				this.contentFinishedLoading();
 			}, 10000);
 
@@ -287,6 +298,18 @@ export default defineComponent({
 	},
 	created() {
 		this.fetchEmail();
+	},
+	// fp-e3v: clean up pending timers on unmount to prevent leaks and
+	// closure-captures of a destroyed component.
+	beforeUnmount() {
+		if (this.timeInterval !== null) {
+			clearInterval(this.timeInterval);
+			this.timeInterval = null;
+		}
+		if (this.loadTimeout !== null) {
+			clearTimeout(this.loadTimeout);
+			this.loadTimeout = null;
+		}
 	},
 	setup() {
 		return {

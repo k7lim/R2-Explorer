@@ -25,7 +25,7 @@
 
     <template v-if="emailData.html">
       <br/>
-      <div class="overflow-auto" v-html="escapeHtml(emailData.htmlAsText).replaceAll('\n', '<br>')"></div>
+      <div class="overflow-auto" v-html="htmlBody"></div>
       <hr/>
     </template>
 
@@ -33,7 +33,7 @@
       <details :open="emailData.html ? undefined : 'open'">
         <summary>Text</summary>
         <br/>
-        <div class="overflow-auto" v-html="escapeHtml(emailData.text).replaceAll('\n', '<br>')"></div>
+        <div class="overflow-auto" v-html="textBody"></div>
       </details>
       <hr/>
     </template>
@@ -65,8 +65,18 @@ export default {
 	data: () => ({
 		emailData: null,
 	}),
+	computed: {
+		// fp-e3v: cache escapeHtml output instead of re-running per render
+		htmlBody() {
+			if (!this.emailData?.htmlAsText) return "";
+			return escapeHtml(this.emailData.htmlAsText).replaceAll("\n", "<br>");
+		},
+		textBody() {
+			if (!this.emailData?.text) return "";
+			return escapeHtml(this.emailData.text).replaceAll("\n", "<br>");
+		},
+	},
 	methods: {
-		escapeHtml,
 		async parseEmail() {
 			try {
 				const parser = new PostalMime.default();

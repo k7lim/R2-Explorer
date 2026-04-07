@@ -83,7 +83,7 @@
           </template>
 
           <template v-else-if="type === 'text'">
-            <div v-html="escapeHtml(fileData).replaceAll('\n', '<br>')"></div>
+            <div v-html="textHtml"></div>
           </template>
 
           <template v-else-if="type === 'json'">
@@ -96,11 +96,11 @@
           </template>
 
           <template v-else-if="type === 'markdown'">
-            <div class="markdown" v-html="sanitizeHtml(markdownParser(fileData))"></div>
+            <div class="markdown" v-html="markdownSanitized"></div>
           </template>
 
           <template v-else-if="type === 'csv'">
-            <div class="markdown" v-html="csvParser(fileData)"></div>
+            <div class="markdown" v-html="csvRendered"></div>
           </template>
 
           <template v-else-if="type === 'logs'">
@@ -119,7 +119,7 @@
                 </q-card-section>
               </q-card>
               <div class="file-edit">
-                <div v-html="escapeHtml(fileData).replaceAll('\n', '<br>')"></div>
+                <div v-html="textHtml"></div>
               </div>
             </div>
           </template>
@@ -332,11 +332,6 @@ export default {
 			this.abortControl = undefined;
 			this.downloadProgress = 0;
 		},
-		sanitizeHtml,
-		escapeHtml,
-		markdownParser(text) {
-			return parseMarkdown(text);
-		},
 		csvParser: (text) => {
 			let result = "";
 			const rows = text.split("\n");
@@ -442,6 +437,19 @@ export default {
 	computed: {
 		selectedBucket: function () {
 			return this.$route.params.bucket;
+		},
+		// fp-e3v: cache expensive sanitize/parse calls instead of re-running per render
+		textHtml: function () {
+			if (this.fileData === undefined || this.fileData === null) return "";
+			return escapeHtml(this.fileData).replaceAll("\n", "<br>");
+		},
+		markdownSanitized: function () {
+			if (this.fileData === undefined || this.fileData === null) return "";
+			return sanitizeHtml(parseMarkdown(this.fileData));
+		},
+		csvRendered: function () {
+			if (this.fileData === undefined || this.fileData === null) return "";
+			return this.csvParser(this.fileData);
 		},
 	},
 	setup() {
