@@ -1,7 +1,22 @@
 import { HTTPException } from "hono/http-exception";
 
 interface ValidateKeyOptions {
+	/**
+	 * Allow keys under `.r2-explorer/`. Only legitimate share-link writers
+	 * (CreateShareLink/DeleteShareLink) should set this — that prefix holds
+	 * sensitive share metadata including PBKDF2 password hashes.
+	 */
 	allowR2ExplorerPrefix?: boolean;
+	/**
+	 * Allow read-side prefixes under `.trash/`, `.versions/`, `.operations/`.
+	 * Set on LIST endpoints so the bucket owner can enumerate soft-deleted
+	 * entries (restore-from-trash), browse historical versions, and inspect
+	 * operational metadata. Write paths (PUT/POST/MKCOL/COPY-dest/MOVE-dest)
+	 * never set this — those prefixes remain write-protected for end users
+	 * while the worker continues to write to them internally via raw bucket
+	 * calls that bypass validateKey. fp-75s.
+	 */
+	allowReservedReadPrefix?: boolean;
 }
 
 /**
@@ -53,11 +68,14 @@ export function validateKey(key: string, options?: ValidateKeyOptions): string {
 		});
 	}
 
-	// Always reject other reserved prefixes
+	// fp-75s: write-protected reserved prefixes — block by default but allow
+	// LIST/read paths to opt in via allowReservedReadPrefix. The bucket owner
+	// needs to enumerate `.trash/` to restore soft-deleted files.
 	if (
-		key.startsWith(".trash/") ||
-		key.startsWith(".versions/") ||
-		key.startsWith(".operations/")
+		!options?.allowReservedReadPrefix &&
+		(key.startsWith(".trash/") ||
+			key.startsWith(".versions/") ||
+			key.startsWith(".operations/"))
 	) {
 		throw new HTTPException(400, {
 			message: "Invalid key: reserved internal prefix",

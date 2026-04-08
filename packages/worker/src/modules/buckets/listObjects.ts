@@ -34,8 +34,14 @@ export class ListObjects extends OpenAPIRoute {
 		const bucketName = data.params.bucket;
 		const bucket = c.env[bucketName] as R2Bucket;
 
+		// fp-75s: LIST is a read path, so the bucket owner is allowed to
+		// enumerate the soft-deleted/.trash/, .versions/, .operations/
+		// reserved prefixes. .r2-explorer/ stays write-and-read protected
+		// because it stores share-link metadata + PBKDF2 hashes.
 		const prefix = data.query.prefix
-			? validateKey(decodeBase64Key(data.query.prefix))
+			? validateKey(decodeBase64Key(data.query.prefix), {
+					allowReservedReadPrefix: true,
+				})
 			: undefined;
 
 		return await bucket.list({

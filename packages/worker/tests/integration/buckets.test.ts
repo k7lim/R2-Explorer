@@ -107,7 +107,11 @@ describe("Bucket Endpoints", () => {
 			expect(response.status).toBe(400);
 		});
 
-		it("GET /api/buckets/:bucket - should reject reserved prefix .trash/", async () => {
+		// fp-75s: LIST is a read path; the bucket owner needs to enumerate
+		// .trash/ to restore soft-deleted files. .versions/ and .operations/
+		// follow the same read-vs-write split. .r2-explorer/ stays blocked
+		// (sensitive share metadata).
+		it("GET /api/buckets/:bucket - allows listing reserved prefix .trash/", async () => {
 			const prefix = ".trash/foo";
 			const base64Prefix = btoa(prefix);
 			const request = createTestRequest(
@@ -115,10 +119,10 @@ describe("Bucket Endpoints", () => {
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
 
-			expect(response.status).toBe(400);
+			expect(response.status).toBe(200);
 		});
 
-		it("GET /api/buckets/:bucket - should reject reserved prefix .versions/", async () => {
+		it("GET /api/buckets/:bucket - allows listing reserved prefix .versions/", async () => {
 			const prefix = ".versions/bar";
 			const base64Prefix = btoa(prefix);
 			const request = createTestRequest(
@@ -126,10 +130,10 @@ describe("Bucket Endpoints", () => {
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
 
-			expect(response.status).toBe(400);
+			expect(response.status).toBe(200);
 		});
 
-		it("GET /api/buckets/:bucket - should reject reserved prefix .operations/", async () => {
+		it("GET /api/buckets/:bucket - allows listing reserved prefix .operations/", async () => {
 			const prefix = ".operations/baz";
 			const base64Prefix = btoa(prefix);
 			const request = createTestRequest(
@@ -137,7 +141,7 @@ describe("Bucket Endpoints", () => {
 			);
 			const response = await app.fetch(request, env, createExecutionContext());
 
-			expect(response.status).toBe(400);
+			expect(response.status).toBe(200);
 		});
 
 		it("GET /api/buckets/:bucket - should list objects with delimiter", async () => {
