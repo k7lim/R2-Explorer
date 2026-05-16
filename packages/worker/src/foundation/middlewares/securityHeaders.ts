@@ -11,10 +11,13 @@ import type { MiddlewareHandler } from "hono";
 export const securityHeadersMiddleware: MiddlewareHandler = async (c, next) => {
 	await next();
 
-	c.header(
-		"Content-Security-Policy",
-		"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:",
-	);
+	// Only set CSP if the handler hasn't already set one (e.g. with a nonce)
+	if (!c.res.headers.has("Content-Security-Policy")) {
+		c.header(
+			"Content-Security-Policy",
+			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:",
+		);
+	}
 	c.header("X-Frame-Options", "DENY");
 	c.header("X-Content-Type-Options", "nosniff");
 	c.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

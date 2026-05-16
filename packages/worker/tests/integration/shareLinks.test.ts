@@ -188,7 +188,7 @@ describe("Share Links Endpoints", () => {
 		});
 	});
 
-	describe("Access Share Link (GET /share/:shareId)", () => {
+	describe("Share Landing Page (GET /share/:shareId)", () => {
 		let shareId: string;
 
 		beforeEach(async () => {
@@ -204,9 +204,281 @@ describe("Share Links Endpoints", () => {
 			shareId = body.shareId;
 		});
 
-		it("should access public share link without authentication", async () => {
+		it("should return HTML landing page with CSP nonce", async () => {
 			const request = new Request(`http://localhost/share/${shareId}`, {
 				method: "GET",
+			});
+
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			expect(response.status).toBe(200);
+			const html = await response.text();
+			expect(html).toContain("<!DOCTYPE html>");
+			expect(html).toContain(testFileName);
+			expect(html).toContain("Download");
+
+			// CSP header must include the nonce used in the script tag
+			const csp = response.headers.get("Content-Security-Policy") || "";
+			const nonceMatch = html.match(/<script nonce="([0-9a-f]+)">/);
+			expect(nonceMatch).not.toBeNull();
+			expect(csp).toContain(`'nonce-${nonceMatch?.[1]}'`);
+		});
+
+		it("should render correct landing page for non-protected share", async () => {
+			const request = new Request(`http://localhost/share/${shareId}`, {
+				method: "GET",
+			});
+
+			const response = await app.fetch(request, env, createExecutionContext());
+			const html = await response.text();
+
+			// No password input element (CSS selector in <style> doesn't count)
+			expect(html).not.toContain('<input type="password"');
+			// Button says "Download", not "Unlock & Download"
+			expect(html).toContain(">Download</button>");
+			// Must NOT auto-call download — browsers block it without user gesture
+			expect(html).not.toContain("download();");
+			// Should use addEventListener (not inline onclick) for CSP compliance
+			expect(html).toContain("addEventListener");
+			// Should have a nonce on the script tag
+			expect(html).toMatch(/<script nonce="[0-9a-f]+">/);
+			// Should have an error div for displaying fetch failures
+			expect(html).toContain('id="error"');
+			// Should POST to the correct share endpoint
+			expect(html).toContain(`fetch("/share/${shareId}"`);
+			expect(html).toContain('"POST"');
+		});
+
+		it("should render correct landing page for password-protected share", async () => {
+			const encodedKey = btoa(testFileName);
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{ password: "secret123" },
+				),
+				env,
+				createExecutionContext(),
+			);
+			const { shareId: protectedId } = (await createResp.json()) as {
+				shareId: string;
+			};
+
+			const request = new Request(`http://localhost/share/${protectedId}`, {
+				method: "GET",
+			});
+			const response = await app.fetch(request, env, createExecutionContext());
+			const html = await response.text();
+
+			expect(response.status).toBe(200);
+			// Must have a password input element
+			expect(html).toContain('<input type="password"');
+			// Button says "Unlock & Download"
+			expect(html).toContain(">Unlock & Download</button>");
+			// Must NOT auto-call download
+			expect(html).not.toContain("download();");
+			// Should use addEventListener (not inline onclick) for CSP compliance
+			expect(html).toContain("addEventListener");
+			// Should have a nonce on the script tag
+			expect(html).toMatch(/<script nonce="[0-9a-f]+">/);
+			// Should have an error div for wrong-password feedback
+			expect(html).toContain('id="error"');
+			// Should POST to the correct share endpoint
+			expect(html).toContain(`fetch("/share/${protectedId}"`);
+			expect(html).toContain('"POST"');
+		});
+
+		it("should return 404 HTML for non-existent share", async () => {
+			const request = new Request(
+				"http://localhost/share/aaaabbbbccccddddeeeeffffaaaabbbb",
+				{ method: "GET" },
+			);
+
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			expect(response.status).toBe(404);
+			const html = await response.text();
+			expect(html).toContain("Not Found");
+			expect(html).toContain("does not exist");
+		});
+
+		it("should return 404 for invalid share ID format", async () => {
+			const request = new Request("http://localhost/share/not-a-hex-value!", {
+				method: "GET",
+			});
+
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			expect(response.status).toBe(404);
+			const html = await response.text();
+			expect(html).toContain("Invalid share link");
+		});
+
+		it("should return 410 HTML for expired share", async () => {
+			const encodedKey = btoa(testFileName);
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{ expiresIn: -1 },
+				),
+				env,
+				createExecutionContext(),
+			);
+			const { shareId: expiredId } = (await createResp.json()) as {
+				shareId: string;
+			};
+
+			const request = new Request(`http://localhost/share/${expiredId}`, {
+				method: "GET",
+			});
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			expect(response.status).toBe(410);
+			const html = await response.text();
+			expect(html).toContain("Link Expired");
+		});
+
+		it("should return 403 HTML when download limit reached", async () => {
+			const encodedKey = btoa(testFileName);
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{ maxDownloads: 1 },
+				),
+				env,
+				createExecutionContext(),
+			);
+			const { shareId: limitedId } = (await createResp.json()) as {
+				shareId: string;
+			};
+
+			// Exhaust the download limit via POST (consume body to release R2 stream)
+			const downloadResp = await app.fetch(
+				new Request(`http://localhost/share/${limitedId}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({}),
+				}),
+				env,
+				createExecutionContext(),
+			);
+			await downloadResp.arrayBuffer();
+
+			// Now GET should show the limit-reached page
+			const request = new Request(`http://localhost/share/${limitedId}`, {
+				method: "GET",
+			});
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			expect(response.status).toBe(403);
+			const html = await response.text();
+			expect(html).toContain("download limit");
+		});
+
+		it("should not increment download counter on GET", async () => {
+			// GET the landing page multiple times
+			for (let i = 0; i < 3; i++) {
+				await app.fetch(
+					new Request(`http://localhost/share/${shareId}`, {
+						method: "GET",
+					}),
+					env,
+					createExecutionContext(),
+				);
+			}
+
+			// Counter should still be 0
+			const metadata = await MY_TEST_BUCKET_1.get(
+				`.r2-explorer/sharable-links/${shareId}.json`,
+			);
+			const data = JSON.parse((await metadata?.text()) || "{}");
+			expect(data.currentDownloads).toBe(0);
+		});
+
+		it("should generate unique nonces per request", async () => {
+			const nonces: string[] = [];
+			for (let i = 0; i < 3; i++) {
+				const response = await app.fetch(
+					new Request(`http://localhost/share/${shareId}`, {
+						method: "GET",
+					}),
+					env,
+					createExecutionContext(),
+				);
+				const html = await response.text();
+				const match = html.match(/<script nonce="([0-9a-f]+)">/);
+				expect(match).not.toBeNull();
+				nonces.push(match?.[1] ?? "");
+			}
+
+			// All three nonces should be different
+			const unique = new Set(nonces);
+			expect(unique.size).toBe(3);
+		});
+	});
+
+	describe("Security headers on non-share routes", () => {
+		it("should have default strict CSP on API routes", async () => {
+			const request = createTestRequest("/api/server/config");
+			const response = await app.fetch(request, env, createExecutionContext());
+
+			const csp = response.headers.get("Content-Security-Policy") || "";
+			expect(csp).toContain("script-src 'self'");
+			expect(csp).not.toContain("nonce");
+		});
+
+		it("should have nosniff on share POST download", async () => {
+			const encodedKey = btoa(testFileName);
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{},
+				),
+				env,
+				createExecutionContext(),
+			);
+			const { shareId: sid } = (await createResp.json()) as {
+				shareId: string;
+			};
+
+			const response = await app.fetch(
+				new Request(`http://localhost/share/${sid}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({}),
+				}),
+				env,
+				createExecutionContext(),
+			);
+			await response.arrayBuffer();
+
+			expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+		});
+	});
+
+	describe("Access Share Link (POST /share/:shareId)", () => {
+		let shareId: string;
+
+		beforeEach(async () => {
+			const encodedKey = btoa(testFileName);
+			const request = createTestRequest(
+				`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+				"POST",
+				{},
+			);
+			const response = await app.fetch(request, env, createExecutionContext());
+			const body = (await response.json()) as { shareId: string };
+			shareId = body.shareId;
+		});
+
+		it("should download file via POST", async () => {
+			const request = new Request(`http://localhost/share/${shareId}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
 			});
 
 			const response = await app.fetch(request, env, createExecutionContext());
@@ -219,149 +491,163 @@ describe("Share Links Endpoints", () => {
 			);
 		});
 
-		it.skip("should increment download counter on access", async () => {
-			const request = new Request(`http://localhost/share/${shareId}`, {
-				method: "GET",
-			});
+		it("should increment download counter on POST", async () => {
+			for (let i = 0; i < 2; i++) {
+				const resp = await app.fetch(
+					new Request(`http://localhost/share/${shareId}`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({}),
+					}),
+					env,
+					createExecutionContext(),
+				);
+				await resp.arrayBuffer();
+			}
 
-			await app.fetch(request, env, createExecutionContext());
-			await app.fetch(request, env, createExecutionContext());
-
-			// Check download counter
-			const shareMetadata = await MY_TEST_BUCKET_1.get(
+			const metadata = await MY_TEST_BUCKET_1.get(
 				`.r2-explorer/sharable-links/${shareId}.json`,
 			);
-			const metadata = JSON.parse((await shareMetadata?.text()) || "{}");
-			expect(metadata.currentDownloads).toBe(2);
+			const data = JSON.parse((await metadata?.text()) || "{}");
+			expect(data.currentDownloads).toBe(2);
 		});
 
-		it("should return 404 for non-existent share", async () => {
-			const request = new Request("http://localhost/share/nonexistent", {
-				method: "GET",
-			});
+		it("should return 404 for non-existent share via POST", async () => {
+			const request = new Request(
+				"http://localhost/share/aaaabbbbccccddddeeeeffffaaaabbbb",
+				{
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({}),
+				},
+			);
 
 			const response = await app.fetch(request, env, createExecutionContext());
 			expect(response.status).toBe(404);
 		});
 
-		it("should return 410 for expired share", async () => {
-			// Create expired share
+		it("should return 410 for expired share via POST", async () => {
 			const encodedKey = btoa(testFileName);
-			const request = createTestRequest(
-				`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
-				"POST",
-				{ expiresIn: -1 }, // Already expired
-			);
-			const response = await app.fetch(request, env, createExecutionContext());
-			const body = (await response.json()) as { shareId: string };
-
-			// Try to access expired share
-			const accessRequest = new Request(
-				`http://localhost/share/${body.shareId}`,
-				{ method: "GET" },
-			);
-			const accessResponse = await app.fetch(
-				accessRequest,
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{ expiresIn: -1 },
+				),
 				env,
 				createExecutionContext(),
 			);
+			const { shareId: expiredId } = (await createResp.json()) as {
+				shareId: string;
+			};
 
-			expect(accessResponse.status).toBe(410);
+			const request = new Request(`http://localhost/share/${expiredId}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({}),
+			});
+			const response = await app.fetch(request, env, createExecutionContext());
+			expect(response.status).toBe(410);
 		});
 
-		it.skip("should enforce download limits", async () => {
-			// Create share with max 2 downloads
+		it("should enforce download limits via POST", async () => {
 			const encodedKey = btoa(testFileName);
-			const request = createTestRequest(
-				`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
-				"POST",
-				{ maxDownloads: 2 },
-			);
-			const response = await app.fetch(request, env, createExecutionContext());
-			const body = (await response.json()) as { shareId: string };
-
-			// Download twice (should work)
-			const accessRequest1 = new Request(
-				`http://localhost/share/${body.shareId}`,
-				{ method: "GET" },
-			);
-			const accessRequest2 = new Request(
-				`http://localhost/share/${body.shareId}`,
-				{ method: "GET" },
-			);
-			const accessRequest3 = new Request(
-				`http://localhost/share/${body.shareId}`,
-				{ method: "GET" },
-			);
-
-			const response1 = await app.fetch(
-				accessRequest1,
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{ maxDownloads: 2 },
+				),
 				env,
 				createExecutionContext(),
 			);
-			const response2 = await app.fetch(
-				accessRequest2,
+			const { shareId: limitedId } = (await createResp.json()) as {
+				shareId: string;
+			};
+
+			const makePostRequest = () =>
+				new Request(`http://localhost/share/${limitedId}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({}),
+				});
+
+			const r1 = await app.fetch(
+				makePostRequest(),
 				env,
 				createExecutionContext(),
 			);
-			const response3 = await app.fetch(
-				accessRequest3,
+			await r1.arrayBuffer();
+			const r2 = await app.fetch(
+				makePostRequest(),
+				env,
+				createExecutionContext(),
+			);
+			await r2.arrayBuffer();
+			const r3 = await app.fetch(
+				makePostRequest(),
 				env,
 				createExecutionContext(),
 			);
 
-			expect(response1.status).toBe(200);
-			expect(response2.status).toBe(200);
-			expect(response3.status).toBe(403); // Limit reached
+			expect(r1.status).toBe(200);
+			expect(r2.status).toBe(200);
+			expect(r3.status).toBe(403);
 		});
 
-		it.skip("should require password for protected shares", async () => {
-			// Create password-protected share
+		it("should require password for protected shares via POST", async () => {
 			const encodedKey = btoa(testFileName);
 			const password = "secret123";
-			const request = createTestRequest(
-				`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
-				"POST",
-				{ password },
-			);
-			const response = await app.fetch(request, env, createExecutionContext());
-			const body = (await response.json()) as { shareId: string };
-
-			// Try without password
-			const accessRequest = new Request(
-				`http://localhost/share/${body.shareId}`,
-				{ method: "GET" },
-			);
-			const accessResponse = await app.fetch(
-				accessRequest,
+			const createResp = await app.fetch(
+				createTestRequest(
+					`/api/buckets/MY_TEST_BUCKET_1/${encodedKey}/share`,
+					"POST",
+					{ password },
+				),
 				env,
 				createExecutionContext(),
 			);
-			expect(accessResponse.status).toBe(401);
+			const { shareId: protectedId } = (await createResp.json()) as {
+				shareId: string;
+			};
 
-			// Try with wrong password
-			const wrongPasswordRequest = new Request(
-				`http://localhost/share/${body.shareId}?password=wrong`,
-				{ method: "GET" },
-			);
-			const wrongPasswordResponse = await app.fetch(
-				wrongPasswordRequest,
+			// Without password → 401
+			const noPassResp = await app.fetch(
+				new Request(`http://localhost/share/${protectedId}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({}),
+				}),
 				env,
 				createExecutionContext(),
 			);
-			expect(wrongPasswordResponse.status).toBe(401);
+			expect(noPassResp.status).toBe(401);
 
-			// Try with correct password
-			const correctPasswordRequest = new Request(
-				`http://localhost/share/${body.shareId}?password=${password}`,
-				{ method: "GET" },
-			);
-			const correctPasswordResponse = await app.fetch(
-				correctPasswordRequest,
+			// Wrong password → 401
+			const wrongPassResp = await app.fetch(
+				new Request(`http://localhost/share/${protectedId}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ password: "wrong" }),
+				}),
 				env,
 				createExecutionContext(),
 			);
-			expect(correctPasswordResponse.status).toBe(200);
+			expect(wrongPassResp.status).toBe(401);
+
+			// Correct password → 200
+			const correctPassResp = await app.fetch(
+				new Request(`http://localhost/share/${protectedId}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ password }),
+				}),
+				env,
+				createExecutionContext(),
+			);
+			expect(correctPassResp.status).toBe(200);
+			const content = await correctPassResp.text();
+			expect(content).toBe(testFileContent);
 		});
 	});
 
@@ -540,17 +826,27 @@ describe("Share Links Endpoints", () => {
 				createExecutionContext(),
 			);
 
-			// Try to access deleted share
-			const accessRequest = new Request(`http://localhost/share/${shareId}`, {
-				method: "GET",
-			});
-			const response = await app.fetch(
-				accessRequest,
+			// GET landing page should 404
+			const getResponse = await app.fetch(
+				new Request(`http://localhost/share/${shareId}`, {
+					method: "GET",
+				}),
 				env,
 				createExecutionContext(),
 			);
+			expect(getResponse.status).toBe(404);
 
-			expect(response.status).toBe(404);
+			// POST download should also 404
+			const postResponse = await app.fetch(
+				new Request(`http://localhost/share/${shareId}`, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({}),
+				}),
+				env,
+				createExecutionContext(),
+			);
+			expect(postResponse.status).toBe(404);
 		});
 	});
 

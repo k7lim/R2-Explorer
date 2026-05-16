@@ -25,6 +25,7 @@ import { CreateShareLink } from "./modules/buckets/createShareLink";
 import { DeleteObject } from "./modules/buckets/deleteObject";
 import { DeleteShareLink } from "./modules/buckets/deleteShareLink";
 import { GetObject } from "./modules/buckets/getObject";
+import { getShareLandingPage } from "./modules/buckets/getShareLandingPage";
 import { GetShareLink } from "./modules/buckets/getShareLink";
 import { HeadObject } from "./modules/buckets/headObject";
 import { ListObjects } from "./modules/buckets/listObjects";
@@ -187,6 +188,7 @@ export function R2Explorer(config?: R2ExplorerConfig) {
 
 	// Public share access (no authentication required) — rate limited (VULN-14)
 	app.use("/share/*", shareRateLimiter);
+	app.get("/share/:shareId", getShareLandingPage);
 	openapi.post("/share/:shareId", GetShareLink);
 
 	openapi.get("/", dashboardIndex);
